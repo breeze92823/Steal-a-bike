@@ -1,4 +1,4 @@
-import { AdditiveBlending, BoxGeometry, CanvasTexture, CircleGeometry, CylinderGeometry, DoubleSide, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, SRGBColorSpace, Sprite, SpriteMaterial, TorusGeometry } from 'three'
+import { AdditiveBlending, BoxGeometry, CanvasTexture, CircleGeometry, CylinderGeometry, DoubleSide, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, SRGBColorSpace, Sprite, SpriteMaterial, TorusGeometry, Vector3 } from 'three'
 import { COARSE_POINTER, ITEMS, LANE, LAYOUT } from './config.js'
 import { player } from './player.js'
 import { onKey } from './input.js'
@@ -11,6 +11,7 @@ import { ITEM_ICONS } from './hud.js'
 //    USE button over the hotbar on touch) while you ride off with a stolen bike.
 //  - Bat: swing it at the guard on your tail. In reach, he is knocked out (Zs
 //    over him) and his vehicle bounces back and rolls to a stop for a while.
+//    Each bat breaks on its swing, hit or miss.
 //  - Barbed Wire: a coil dropped across the lane behind you; driving into it
 //    shreds his tyres: he crawls for a few seconds.
 //  - Oil Slick: a puddle behind you; he spins out.
@@ -124,7 +125,9 @@ export function createItems({ scene, hud, heist, lane, rig, canvas }) {
   bat.add(barrel, grip, knob)
   bat.visible = false
   rig.add(bat)
+  const splinterAt = new Vector3()
   let swing = -1 // s into a swing, -1 = none
+  let batBreak = false // this swing snaps the bat at the end of its strike
 
   // --- Traps on the lane ------------------------------------------------------------------------
   const steel = new MeshStandardMaterial({ color: '#c9d0da', roughness: 0.3, metalness: 0.85 })
@@ -207,21 +210,24 @@ export function createItems({ scene, hud, heist, lane, rig, canvas }) {
     const g = heist.chaser
     const p = player.position
     if (id === 'bat') {
+      // One swing per bat: it snaps on the swing, hit or miss.
       if (swing >= 0) return
+      if (!g) return hud.say('Nobody to hit yet!')
+      if (g.stun > 0 && !g.spinOut) return hud.say('He is already out cold')
       swing = 0
       sfx('swing')
-      if (!g) return hud.say('Nobody to hit yet!')
       const o = g.obj.position
       const gap = Math.hypot(o.x - p.x, o.z - p.z) - Math.min(g.obj.userData.length, 6) / 2
       if (gap > K.reach || Math.abs(o.y - p.y) > 4.5) {
         sfx('whiff')
-        return hud.say('Too far! Let him get closer')
+        hud.say('Missed! The bat broke')
+      } else {
+        heist.stun(g, K.stun, { knock: K.knock })
+        sfx('bonk', o)
+        for (let i = 0; i < 10; i++) heist.puff(o.x, o.y + g.obj.userData.height * 0.6, o.z, { color: i % 2 ? '#ffffff' : '#ffe066', size: 0.8, spread: 1.6, up: 2.4, life: 0.6, opacity: 0.9 })
+        hud.say('BONK! The bat broke')
       }
-      if (g.stun > 0 && !g.spinOut) return hud.say('He is already out cold')
-      heist.stun(g, K.stun, { knock: K.knock })
-      sfx('bonk', o)
-      for (let i = 0; i < 10; i++) heist.puff(o.x, o.y + g.obj.userData.height * 0.6, o.z, { color: i % 2 ? '#ffffff' : '#ffe066', size: 0.8, spread: 1.6, up: 2.4, life: 0.6, opacity: 0.9 })
-      hud.say('BONK! He is out cold')
+      batBreak = true
     } else if (id === 'wire') dropWire()
     else if (id === 'oil') dropOil()
     else if (id === 'smoke') {
@@ -318,6 +324,14 @@ export function createItems({ scene, hud, heist, lane, rig, canvas }) {
       swing += dt
       const f = swing < 0.16 ? swing / 0.16 : Math.max(0, 1 - (swing - 0.16) / 0.3)
       bat.rotation.set(0.5 - f * 2.7, 0, 0.35 + f * 0.5)
+      if (batBreak && swing > 0.16) {
+        // Snapped: wood splinters fly off and the bat is gone.
+        batBreak = false
+        swing = -1
+        barrel.getWorldPosition(splinterAt)
+        sfx('snag', splinterAt)
+        for (let i = 0; i < 9; i++) heist.puff(splinterAt.x, splinterAt.y, splinterAt.z, { color: i % 3 ? '#e0bd7c' : '#8a6a3a', size: 0.35, spread: 0.9, up: 2, life: 0.5, opacity: 0.95 })
+      }
       if (swing > 0.46) swing = -1
     } else bat.rotation.set(0.5, 0, 0.35)
 
