@@ -234,6 +234,9 @@ export const TRAINING = {
   upgradeGems: [11, 25, 50, 90, 150, 240, 380],
   clickMult: 4,
   clickCooldown: 0.45,
+  boostTime: 5, // s the x4 speed lasts after clicking the badge
+  badgeGap: [4, 12], // s the x4 badge stays hidden between appearances (random in this range)
+  badgeStay: [2.5, 4.5], // s it stays on offer
   pedalSpeed: 7, // speed fed to the pedalling animation and the wheels, m/s
   beltIdle: 0.9, // belt texture scroll, repeats/s
   beltTraining: 3.2,
@@ -290,8 +293,12 @@ export const STALLS = {
   trails: { zone: { x: 32.5, z: -7, halfX: 5.6, halfZ: 3.4 }, anchor: { x: 32.5, y: 2.6, z: -9.5 } },
   sell: { zone: { x: -30, z: -7.4, r: 3.3 }, anchor: { x: -30, y: 2.6, z: -9.6 } },
   fuse: { zone: { x: -15.5, z: -7.4, r: 3.3 }, anchor: { x: -15.5, y: 2.6, z: -9.6 } },
-  halloween: { zone: { x: -43, z: -7.4, r: 3.3 }, anchor: { x: -43, y: 2.6, z: -9.6 } },
+  exclusive: { zone: { x: 55, z: -11, r: 4.6 }, anchor: { x: 55, y: 3.2, z: -11 } },
 }
+// The FREE GIFT! chest (gift.js, market.js): stand on its disc (zone) and hold E to watch a
+// Bloxity rewarded ad (`placement`: lowercase, digits, hyphens) for `speed` speed, then wait
+// `cooldown` s (the backend's GIFT_COOLDOWN_MS decides). `icons` = bike icons flying into the counter.
+export const GIFT = { zone: { x: 41.5, z: -8.8, r: 2.6 }, anchor: { x: 41.5, y: 3.0, z: -8.8 }, speed: 100, cooldown: 300, placement: 'free-gift', icons: 12 }
 // Bikes as the windows draw them (bikeart.js) and what they sell for.
 // kind: bicycle / dirt / sport; body, accent, rim colours; skull on the tank.
 export const BIKES = {
@@ -316,6 +323,7 @@ export const RARITIES = {
   Insane: { bg: ['#ff0a8e', '#bc0058'], speed: 120 },
   Secret: { bg: ['#4a4a4e', '#0c0c0e'], speed: 250 },
   Limited: { bg: ['#ff9a2a', '#a83400'], speed: 150 },
+  Exclusive: { bg: ['#ff6ae0', '#8a1a9a'], speed: 200 },
 }
 export const INDEX_REWARD = { cashSeconds: 45 }
 // The Bike Index (bikeindex.js): every bike in the game, world by world.
@@ -336,7 +344,11 @@ export const INDEX_WORLDS = [
   { name: 'Angel Biome', scene: 'angel', bikes: [['Halo Runner', 'Insane', 'sport', '#fff4d0', 7e6], ['Seraph', 'Insane', 'sport', '#ffffff', 7.5e6], ['Cherub', 'Insane', 'scooter', '#ffd8ec', 8e6], ['Celestia', 'Insane', 'cruiser', '#ffe88a', 8.6e6], ["Heaven's Gate", 'Insane', 'sport', '#f4f0e0', 9e6], ['Phantom GT', 'Secret', 'sport', '#f4f6ff', 1.6e7], ['Archangel', 'Secret', 'sport', '#ffd23a', 1.8e7], ['Divine Wing', 'Secret', 'sport', '#ffffff', 2e7]] },
   { name: 'Fusion Bikes', scene: 'fusion', bikes: [['Supro Cub', 'Insane', 'dirt', '#1a6cff', 6e6], ['MX09', 'Insane', 'dirt', '#2a2e3a', 7e6], ['Street Spark', 'Rare', 'dirt', '#e8202a', 1.5e3], ['Trail Blazer', 'Epic', 'dirt', '#f0b020', 2.6e4], ['Thunder Wraith', 'Legendary', 'sport', '#2a3a8a', 3.4e5], ['Quantum Reactor', 'Insane', 'sport', '#1a2a8a', 6e6], ['Astral Crown', 'Secret', 'sport', '#8a2ad8', 2.2e7], ['Crimson Wyvern', 'Secret', 'sport', '#d01a2a', 2.5e7]] },
   { name: 'Halloween', scene: 'halloween', bikes: [['Pumpkin Putt', 'Epic', 'scooter', '#ff8a12', 2e4], ['Bat Wing', 'Legendary', 'sport', '#2a1a3a', 6e4], ['Hex Hog', 'Legendary', 'cruiser', '#5fff6a', 7e4], ['Skull Cruiser', 'Mythical', 'cruiser', '#e8e8e8', 2e5], ['Phantom Wraith', 'Limited', 'dirt', '#3fe8ff', 2.5e4], ['Eclipse Reaper', 'Limited', 'sport', '#1a1a26', 1e7]] },
+  { name: 'Exclusive', scene: 'exclusive', bikes: [['Bloom', 'Exclusive', 'sport', '#ff7ac8', 15e3], ['Volt', 'Exclusive', 'sport', '#ffe81a', 1e5], ['Abyss', 'Exclusive', 'sport', '#0a5aff', 125e3]] },
 ]
+// The Exclusive bikes on the market podium (exclusive.js): hold E in its ring to buy one.
+// Price = income x 600 s (it pays itself back in ten minutes of parking it in your base).
+export const EXCLUSIVE = { payback: 600, order: ['Bloom', 'Volt', 'Abyss'] }
 // The Fuse Machine (fuse.js), at the Fuse Machine stall. Each tier turns its three
 // bikes into the result (which joins your bikes and the Index); a tier unlocks when
 // the one before it has been fused. FUSE_BIKES are the ingredients that are in no
@@ -361,17 +373,6 @@ export const FUSE_BIKES = {
   Sovereign: ['cruiser', '#5a2a8a', 4e6],
 }
 export const INDEX_START = ['BMX', 'Club Tourer'] // discovered at the start (the Club Tourer is on your plot)
-// The Halloween stall (halloween.js): spend candy corn. Bikes join your bikes
-// (sellable); boosts last `minutes`. tone = the card colour.
-export const HALLOWEEN_SHOP = {
-  corn: 0, // starting corn
-  items: [
-    { bike: 'Phantom Wraith', income: '$25K/s', corn: 2500, tone: 'pink' },
-    { bike: 'Eclipse Reaper', income: '$10M/s', corn: 5e4, tone: 'pink' },
-    { boost: '1.5x Training', minutes: 5, corn: 100, tone: 'purple' },
-    { boost: '1.5x Income', minutes: 5, corn: 100, tone: 'green' },
-  ],
-}
 // Daily Rewards (daily.js): one day unlocks every `every` s after the last
 // claim; after day 7 it starts over. op = the OP! tag. Saved in localStorage.
 export const DAILY_REWARDS = {

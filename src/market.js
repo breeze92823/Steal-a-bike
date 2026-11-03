@@ -1,17 +1,17 @@
 import { BoxGeometry, CircleGeometry, CylinderGeometry, Group, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, RepeatWrapping, RingGeometry, Shape, ShapeGeometry, SphereGeometry, TorusGeometry } from 'three'
-import { LEADERBOARD, PALETTE } from './config.js'
+import { EXCLUSIVE, GIFT, LEADERBOARD, PALETTE } from './config.js'
+import { bikeModel } from './bikes3d.js'
+import { bikePrice, CATALOG } from './bikeart.js'
 import { net, onLeaderboard } from './net.js'
 import { shortNumber } from './hud.js'
 import { bake, bakeStatic } from './bake.js'
 import { label, neon, put, solidBox, solidPole } from './propkit.js'
-import { canvasTexture, hay, lampPost, liveLabel, motorbike, outlinedText, plain, pumpkin, sbox, studMat, voxelTree } from './kit.js'
+import { canvasTexture, hay, lampPost, liveLabel, outlinedText, plain, pumpkin, sbox, studMat, voxelTree } from './kit.js'
 import { bob, onFrame, sparkles } from './fx.js'
 
 // The strip north of the road: the shops and machines. West to east: lamp and
-// tree planter, the INVITE ONLY podium and star board, the Halloween! and SELL!
-// stalls with their glowing rings, the Fuse Machine at the valley mouth;
-// across the junction the Trails stall and its glowing pool, the FREE GIFT!
-// chest, the MOST CASH board, the Exclusive bike in its bubble, another
+// tree planter, the SELL! stall with its glowing ring, the Fuse Machine at the valley mouth;
+// across the junction the Trails stall and its glowing pool, the FREE GIFT! chest, the MOST CASH board, the Exclusive bike in its bubble, another
 // planter and lamp. Everything faces south, toward the road.
 const P = PALETTE
 const STALL_BRICK = '#cf9a86'
@@ -256,7 +256,7 @@ function giftChest(root, x, z) {
   sparkles(root, x, 0.2, z, { count: 18, radius: 2, height: 2.5, color: '#fff27a', size: 0.32, speed: 0.7 })
   const t1 = label('FREE GIFT!', 1.5, { color: '#7dff3a', outline: '#0b3a10' })
   t1.position.set(x - 0.5, 4.2, z)
-  const t2 = label('GROUP MEMBERS • +100 SPEED', 0.55, { color: '#ffffff', outline: '#1b1b2a', outlineWidth: 8 })
+  const t2 = label(`WATCH AN AD • +${GIFT.speed} SPEED`, 0.55, { color: '#ffffff', outline: '#1b1b2a', outlineWidth: 8 })
   t2.position.set(x - 0.5, 3.45, z)
   root.add(t1, t2)
 }
@@ -280,33 +280,6 @@ function podium(root, x, z, { lower, upper, rim, bike }) {
   root.add(turn)
   onFrame((dt) => (turn.rotation.y += dt * 0.45))
   return turn
-}
-
-function starBoard(root, x, z) {
-  const tex = canvasTexture(160, 110, (ctx, w, h) => {
-    ctx.fillStyle = '#123a9a'
-    ctx.fillRect(0, 0, w, h)
-    ctx.strokeStyle = '#0a1a40'
-    ctx.lineWidth = 10
-    ctx.strokeRect(0, 0, w, h)
-    ctx.fillStyle = '#5fc8ff'
-    ctx.beginPath()
-    for (let i = 0; i < 10; i++) {
-      const a = -Math.PI / 2 + (i * Math.PI) / 5
-      const r = i % 2 ? 18 : 42
-      ctx.lineTo(80 + Math.cos(a) * r, 58 + Math.sin(a) * r)
-    }
-    ctx.fill()
-  })
-  const g = new Group()
-  for (const s of [-1, 1]) put(g, new BoxGeometry(0.1, 1, 0.1), plain('#3a2a20'), s * 0.6, 0.5, 0)
-  put(g, new BoxGeometry(1.7, 1.15, 0.12), new MeshStandardMaterial({ map: tex }), 0, 1.3, 0)
-  g.position.set(x, 0, z)
-  g.rotation.y = 0.25
-  root.add(g)
-  const t = label('Like & Favorite\nFor in-game boosts', 0.45, { colors: ['#7dff3a', '#ffffff'], outline: '#111', outlineWidth: 8 })
-  t.position.set(x, 2.4, z)
-  root.add(t)
 }
 
 function planter(root, x, z, seed) {
@@ -358,20 +331,16 @@ function glowPool(root, x, z, w, d) {
   sparkles(root, x, 0.1, z, { count: 22, radius: Math.min(w, d) / 2, height: 1.4, color: '#bff8ff', size: 0.28, speed: 0.45 })
 }
 
-function invitePodium(root, x, z) {
-  const bike = motorbike('#ffffff', '#ff4fb8', '#ff8ad8')
-  podium(root, x, z, { lower: '#8a4bd8', upper: '#ff9ad8', rim: '#ff7ae0', bike })
-  const t1 = label('INVITE ONLY', 1.15, { color: '#ffd21a', outline: '#2a1400' })
-  t1.position.set(x, 3.6, z)
-  const t2 = label('MUST JOIN THROUGH INVITE', 0.48, { color: '#5fe4ff', outline: '#0b1a3a', outlineWidth: 8 })
-  t2.position.set(x, 3.0, z)
-  root.add(t1, t2)
-}
-
 // The Exclusive bike: in a glass bubble with spinning rings; the name on top cycles.
 function exclusivePodium(root, x, z) {
-  const bike = motorbike('#2fb8ff', '#141a33', '#7ff6ff')
-  podium(root, x, z, { lower: '#cfd2ff', upper: '#ffffff', rim: '#5fe4ff', bike })
+  const turn = podium(root, x, z, { lower: '#cfd2ff', upper: '#ffffff', rim: '#5fe4ff', bike: new Group() })
+  // The three real bikes take turns on the podium (the name labels cycle with them).
+  const bikes = EXCLUSIVE.order.map((n) => {
+    const b = bake(bikeModel(n), true)
+    b.visible = false
+    turn.add(b)
+    return b
+  })
   const bubble = put(root, new SphereGeometry(1.9, 32, 20), new MeshStandardMaterial({ color: '#e8f4ff', transparent: true, opacity: 0.12, roughness: 0.05, depthWrite: false }), x, 2.2, z, false)
   bubble.renderOrder = 2
   const rings = []
@@ -385,7 +354,7 @@ function exclusivePodium(root, x, z) {
     rings[0].rotation.y += dt * 0.7
     rings[1].rotation.y -= dt * 0.5
   })
-  const names = [['Abyss', '$125K/s'], ['Bloom', '$15K/s'], ['Volt', '$100K/s']]
+  const names = EXCLUSIVE.order.map((n) => [n, `$${shortNumber(CATALOG.get(n).income)}/s`, `$${shortNumber(bikePrice(n))}`])
   const nameL = liveLabel(names[0][0], 0.6, { color: '#3fd2ff', outline: '#0b1a3a' })
   const exL = label('Exclusive', 0.4, { color: '#ff4fd8', outline: '#2a0a2a', outlineWidth: 8 })
   const incL = liveLabel(names[0][1], 0.45, { color: '#ffd21a', outline: '#2a1a00', outlineWidth: 8 })
@@ -395,15 +364,16 @@ function exclusivePodium(root, x, z) {
   incL.sprite.position.set(x, 4.35, z)
   priceL.sprite.position.set(x, 3.95, z)
   root.add(nameL.sprite, exL, incL.sprite, priceL.sprite)
-  let shown = 0
+  let shown = -1
   onFrame((dt, t) => {
     const i = Math.floor(t / 6) % names.length
     if (i !== shown) {
       shown = i
       nameL.set(names[i][0])
       incL.set(names[i][1])
+      priceL.set(names[i][2])
+      bikes.forEach((b, k) => (b.visible = k === i))
     }
-    priceL.set(t % 6 < 1.5 ? 'Loading price...' : 'Only 19 ◎')
   })
 }
 
@@ -425,10 +395,6 @@ export function buildMarket(scene) {
   westLamp.position.set(-59, 0, -6.2)
   root.add(westLamp)
   planter(root, -63, -14, 41)
-  invitePodium(root, -54, -11)
-  starBoard(root, -50, -6.6)
-  stall(root, -43, -12, { a: '#ff8a1a', b: '#ffffff', sign: 'Halloween!', signColor: '#ff5a2a' })
-  glowDisc(root, -43, -7.4, 2.9, '#ff9a3a', 1.3)
   const post = new Group()
   put(post, new BoxGeometry(0.15, 1.4, 0.15), plain('#3a3a40'), 0, 0.7, 0)
   put(post, new BoxGeometry(0.5, 0.4, 0.35), plain('#f2f2f2'), 0, 1.5, 0)

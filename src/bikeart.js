@@ -1,4 +1,4 @@
-import { BIKES, FUSE_BIKES, INDEX_WORLDS } from './config.js'
+import { BIKES, EXCLUSIVE, FUSE_BIKES, INDEX_WORLDS } from './config.js'
 
 // Flat side-view bike pictures for the shop windows and the Bike Index: a
 // bicycle, cargo bicycle, scooter, dirt bike, sport bike or cruiser in its
@@ -139,6 +139,7 @@ const SCENES = {
   aurora: { sky: ['#06122a', '#1a3a5a'], far: '#5a7a9a', ground: '#e8f4fb', motif: 'aurora', snowcap: true },
   angel: { sky: ['#fff4d0', '#ffffff'], far: '#f0e8d8', ground: '#ffffff', motif: 'heaven' },
   fusion: { sky: ['#0a1a3a', '#2a6aff'], far: '#1a2a5a', ground: '#14204a', motif: 'energy' },
+  exclusive: { sky: ['#2a0a4a', '#ff4fd8'], far: '#3a1a6a', ground: '#1a0a3a', motif: 'energy' },
   halloween: { sky: ['#1a0a2a', '#ff8a2a'], far: '#2a1a3a', ground: '#2a1a14', motif: 'spooky' },
 }
 
@@ -177,3 +178,6 @@ export function worldScene(name) {
     ${MOTIFS[sc.motif](sc)}
   </svg>`
 }
+
+// What an Exclusive bike costs at the market podium: its income x EXCLUSIVE.payback seconds.
+export const bikePrice = (name) => Math.round((CATALOG.get(name)?.income ?? 0) * EXCLUSIVE.payback)

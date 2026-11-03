@@ -207,8 +207,7 @@ export function createTraining({ scene, hud, camera, mill }) {
   hud.mount(upgrade)
 
   onKey('KeyE', () => {
-    if (player.training) pedalHard()
-    else if (nearSign) buyUpgrade()
+    if (!player.training && nearSign) buyUpgrade()
   })
   // With the mouse captured there is no cursor to aim at the badge: any click pedals.
   window.addEventListener('pointerdown', (e) => {
@@ -221,6 +220,9 @@ export function createTraining({ scene, hud, camera, mill }) {
   let combo = 0
   let cool = 0
   let wasReady = true
+  let boostLeft = 0 // s of x4 speed left after clicking the badge
+  let badgeLeft = 0 // s the x4 badge is still on offer (0 = hidden)
+  let badgeWait = 0 // s until it shows again
   let angle = 0 // wheelie, rad
   let wt = -1 // s since the wheelie started (-1 = none)
   let wFrom = 0 // angle it started from
@@ -239,6 +241,21 @@ export function createTraining({ scene, hud, camera, mill }) {
   }
   const onBelt = (p) => Math.abs(p.x - mill.x) < 0.95 && p.z > mill.z0 + 0.4 && p.z < mill.z0 + len - 0.2 && p.y < beltTop + 0.5
 
+  // The x4 badge only pops up now and then: hidden for a random spell, then on offer for a few seconds.
+  function hideBadge() {
+    badgeLeft = 0
+    boostLeft = 0
+    badgeWait = T.badgeGap[0] + Math.random() * (T.badgeGap[1] - T.badgeGap[0])
+    badge.classList.remove('show', 'ready', 'cool')
+  }
+  function showBadge() {
+    badgeLeft = T.badgeStay[0] + Math.random() * (T.badgeStay[1] - T.badgeStay[0])
+    cool = 0
+    wasReady = true
+    barFill.style.transform = 'scaleX(1)'
+    badge.classList.add('show', 'ready')
+  }
+
   function mount() {
     player.training = { x: mill.x, y: beltTop, z: seatZ, facing: Math.PI } // facing the console (north)
     player.wantsOff = false
@@ -246,8 +263,8 @@ export function createTraining({ scene, hud, camera, mill }) {
     combo = 0
     cool = 0
     aura.visible = true
-    badge.classList.add('show', 'ready')
-    hint.textContent = matchMedia('(pointer: coarse)').matches ? 'Tap x4 to pedal hard · Jump to get off' : 'Click x4 or press E to pedal hard · Space to get off'
+    hideBadge()
+    hint.textContent = matchMedia('(pointer: coarse)').matches ? 'Tap x4 when it appears · Jump to get off' : 'Click x4 when it appears · Space to get off'
     hint.classList.add('show')
     mill.rate.set(`+${shortNumber(rate())}/s`)
     sfx('mount')
@@ -279,7 +296,7 @@ export function createTraining({ scene, hud, camera, mill }) {
     const x = mill.x
     const y = beltTop + 2.3
     const z = seatZ
-    const text = `+${shortNumber(rate())}`
+    const text = `+${shortNumber(n / icons)}`
     for (let i = 0; i < icons; i++) {
       const a = burst ? (i / icons) * Math.PI * 2 + Math.random() * 0.5 : Math.random() * Math.PI * 2
       const r = burst ? 1.6 + Math.random() * 0.6 : 0.4
@@ -290,8 +307,9 @@ export function createTraining({ scene, hud, camera, mill }) {
 
   // x4: pop a wheelie and pay four ticks at once.
   function pedalHard() {
-    if (!player.training || cool > 0) return
-    cool = T.clickCooldown
+    if (!player.training || boostLeft > 0 || badgeLeft <= 0) return
+    boostLeft = T.boostTime
+    badgeLeft = T.boostTime + 0.1 // the badge stays up as a draining timer
     wasReady = false
     // Up from wherever the front wheel is; a click while it is still up just holds it longer.
     if (wt >= 0 && wt < T.wheelie.rise + T.wheelie.hold) wt = Math.min(wt, T.wheelie.rise)
@@ -300,7 +318,6 @@ export function createTraining({ scene, hud, camera, mill }) {
       wt = 0
     }
     landed = false
-    gain(rate() * T.clickMult, T.clickMult, true)
     sfx('click', combo++)
     badge.classList.remove('pop', 'ready')
     void badge.offsetWidth
@@ -378,16 +395,19 @@ export function createTraining({ scene, hud, camera, mill }) {
         tickLeft -= dt
         if (tickLeft <= 0) {
           tickLeft += T.tick
-          gain(rate(), 1, false)
+          gain(rate() * (boostLeft > 0 ? T.clickMult : 1), 1, false) // x4 of the current speed while boosted
           sfx('tick', combo)
         }
         cool = Math.max(0, cool - dt)
-        barFill.style.transform = `scaleX(${1 - cool / T.clickCooldown})`
-        if (cool === 0 && !wasReady) {
-          wasReady = true
-          badge.classList.remove('cool')
-          badge.classList.add('ready')
+        boostLeft = Math.max(0, boostLeft - dt)
+        if (badgeLeft > 0) {
+          badgeLeft -= dt
+          if (badgeLeft <= 0) hideBadge()
+        } else {
+          badgeWait -= dt
+          if (badgeWait <= 0) showBadge()
         }
+        barFill.style.transform = `scaleX(${boostLeft > 0 ? boostLeft / T.boostTime : 1})`
         // Badge to the right of your head on screen.
         const p = toScreen(mill.x, beltTop + 2.6, seatZ)
         const r = badge.offsetWidth * 0.6

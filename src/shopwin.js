@@ -5,7 +5,7 @@ import { isHeld } from './input.js'
 import { player } from './player.js'
 
 // The shop window shell every market window shares (Trail Shop, Sell Bikes,
-// Halloween Shop, Daily Rewards): a blur over the world, an optional big title
+// Daily Rewards): a blur over the world, an optional big title
 // above, the cyan lego header with its title and red X, and a body each window
 // fills. One window is open at a time; Esc, X or (for stall windows) E or
 // walking away closes it. Plus the hold-to-interact prompt that floats over a

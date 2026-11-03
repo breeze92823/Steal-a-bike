@@ -21,6 +21,7 @@ import { createTraining } from './training.js'
 import { createChaseHud } from './chasehud.js'
 import { createHeist } from './heist.js'
 import { createBase } from './base.js'
+import { bikeModel } from './bikes3d.js'
 import { initNet, sendBase, sendEmote, sendLoadout, sendPose, syncAvatar } from './net.js'
 import { createPlots } from './plots.js'
 import { createBubble } from './bubble.js'
@@ -98,7 +99,16 @@ const lobby = buildLobby(scene) // ground, road, plots, garages, walls
 const market = buildMarket(scene) // shops north of the road
 const junction = buildValley(scene) // the road to the safe zone line
 const hud = createHud()
-const shops = createShops({ hud, camera }) // Trail Shop, Sell Bikes, Halloween Shop (hold E at the stalls), Daily Rewards, Bike Index
+const shops = createShops({
+  hud,
+  camera,
+  // An Exclusive bike you bought: into your hands like a stolen one (base.hold), if they are free.
+  give(name, value) {
+    if (player.holding || heist.carrying || player.training) return hud.say('Place or sell your bike first!'), false
+    base.hold(name, bikeModel(name), value)
+    return true
+  },
+}) // Trail Shop, Sell Bikes, Exclusive Bikes (hold E at the stalls), Daily Rewards, Bike Index
 createPlayerBody()
 syncYawToPlayer()
 installAudio()

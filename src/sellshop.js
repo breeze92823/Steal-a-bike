@@ -8,7 +8,7 @@ import { registerStore } from './stores.js'
 // Sell Bikes, at the SELL! stall (hold E in its glowing disc). Your bikes as
 // tiles, each picked (green border) to sell; tap one to leave it out. The bar
 // shows the total of the picked bikes and Sell turns them into cash. Bikes come
-// from SELL_START, Daily Rewards and the Halloween shop (addBike). Walking in
+// from SELL_START, and Daily Rewards (addBike). Walking in
 // with a stolen bike in your hands, the hold sells that one (onHandSale).
 
 let bikes = [] // { name, value, on }

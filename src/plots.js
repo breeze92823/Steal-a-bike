@@ -27,6 +27,8 @@ import { net, roster } from './net.js'
 const money = (n) => `$${shortNumber(n)}`
 const info = (name) => CATALOG.get(name) ?? { rarity: 'Common', income: 4 }
 const RISE = { every: 1, rise: 1.0, duration: 1.1 }
+const MINE_NAME_STYLE = { color: '#ffe14a', outline: '#5a2a00', outlineWidth: 12 }
+const OTHER_NAME_STYLE = { color: '#ffffff', outline: '#1d1a5c', outlineWidth: 12 }
 const CASH_STYLE = { color: '#5dff4a', outline: '#0d3a10', outlineWidth: 10 }
 const NAME_STYLE = { color: '#ffffff', outline: '#2a2244' }
 
@@ -83,8 +85,6 @@ class PlotView {
     this.clear()
     this.mine = state.mine
     const { cx, treadmill, baseSign } = this.plot
-    treadmill.sign.mark.visible = state.mine
-    baseSign.mark.visible = state.mine
     treadmill.rate.sprite.visible = !!state.owner
     const depth = L.plotRows * L.plotRowDepth
     if (!state.owner) {
@@ -99,8 +99,14 @@ class PlotView {
     if (floors > 1) this.decks(floors)
     this.bikes(state.placed, floors)
     const top = (floors - 1) * BASE.deck
-    const name = label(state.mine ? 'Your Base' : `${state.owner}'s Base`, 1.0, NAME_STYLE)
-    name.position.set(cx, top + (floors > 1 ? 3.2 : 2.4), L.plotZ + depth / 2)
+    const name = label(
+      state.mine ? `★ ${state.owner}'s Base ★` : `${state.owner}'s Base`,
+      state.mine ? 2.4 : 2,
+      state.mine ? MINE_NAME_STYLE : OTHER_NAME_STYLE,
+    )
+    name.material.depthTest = false // never hidden behind decks, cliffs or other bases
+    name.renderOrder = 10
+    name.position.set(cx, top + 10, L.plotZ + depth / 2) // 10 m above the base
     this.group.add(name)
     if (!state.mine) {
       // Yours are your buttons (training.js, base.js); others' say how far they got.

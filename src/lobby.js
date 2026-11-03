@@ -3,7 +3,7 @@ import { LAYOUT, PALETTE } from './config.js'
 import { bake, bakeStatic } from './bake.js'
 import { label, neon, put, solidBox } from './propkit.js'
 import { mulberry32 } from './textures.js'
-import { canvasTexture, exclamation, ghost, liveLabel, meterBox, outlinedText, plain, pumpkin, sbox, studMat, tube, voxelTree } from './kit.js'
+import { canvasTexture, ghost, liveLabel, meterBox, outlinedText, plain, pumpkin, sbox, studMat, tube, voxelTree } from './kit.js'
 import { bob, onFrame } from './fx.js'
 
 // The plaza: lego ground, the east-west road with the junction stub north, the
@@ -146,16 +146,12 @@ function upgradeSign(root, x, z, face, lines) {
   g.rotation.y = face
   root.add(g)
   solidBox(1.3, 0.6, 0.6, x, 0.6, z, face)
-  const mark = exclamation(1)
-  mark.position.set(x, 2.3, z)
-  root.add(mark)
-  bob(mark, 0.15, 2.4, x)
   const setLines = (next) => {
     lines = next
     paint(tex.image.getContext('2d'), tex.image.width, tex.image.height)
     tex.needsUpdate = true
   }
-  return { group: g, setLines, mark }
+  return { group: g, setLines }
 }
 
 // --- Plots -------------------------------------------------------------------------------------
@@ -326,8 +322,8 @@ export function buildLobby(scene) {
       cx,
       // For training.js (whoever owns it): belt centre x, console end z0, length, the group (belt
       // speed), the floating rate label and the upgrade sign.
-      treadmill: { x: tx, z0: L.treadmillZ, len: 4.6, group: mill, rate, sign: { x: signX, z: signZ, setLines: sign.setLines, mark: sign.mark }, sprites },
-      baseSign: { x: bx, z: bz, setLines: base.setLines, mark: base.mark },
+      treadmill: { x: tx, z0: L.treadmillZ, len: 4.6, group: mill, rate, sign: { x: signX, z: signZ, setLines: sign.setLines }, sprites },
+      baseSign: { x: bx, z: bz, setLines: base.setLines },
     }
   })
   const flatBaked = bake(flat, false)

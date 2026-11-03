@@ -479,6 +479,26 @@ export async function fetchEmotes() {
   return Array.isArray(body) ? body : body?.emotes ?? []
 }
 
+// --- Rewarded ads ---------------------------------------------------------------
+// Only offer an ad while Bloxity has one to show.
+export function canShowRewarded() {
+  try {
+    return sdk()?.ads?.isAvailable?.() === true
+  } catch {
+    return false
+  }
+}
+// Shows a rewarded ad; resolves { status, reason?, rewardToken?, test? } (never rejects). Pay out
+// only on status 'completed', and only once the game server has checked rewardToken (net.js).
+export async function showRewarded(placement) {
+  try {
+    return (await sdk()?.ads?.showRewarded?.(placement)) ?? { status: 'disabled' }
+  } catch (err) {
+    console.warn('[bloxity] rewarded ad failed', err)
+    return { status: 'error' }
+  }
+}
+
 // --- Gems (in-app purchases) ---------------------------------------------------
 // The product SKUs live in the game's Bloxity dashboard and the backend's GEM_PACKS. Bloxity pays
 // the purchase out through the server's webhook (backend gems.ts), which tells net.js the new balance.

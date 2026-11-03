@@ -98,6 +98,7 @@ function hydrate(doc) {
     hud?.restore({ cash: doc.cash, speed: doc.speed, income: doc.income })
     if (Number.isFinite(doc.playtime)) playtime = doc.playtime
     if (Number.isFinite(doc.gems)) setGems(doc.gems)
+    fromServer({ readyAt: doc.giftReadyAt, serverTime: doc.serverTime })
     for (const s of allStores()) {
       try {
         s.hydrate(doc)
@@ -142,6 +143,30 @@ export function sendNet(type, payload) {
   if (!net.connected) return false
   send(type, payload)
   return true
+}
+
+// --- FREE GIFT! (gift.js) -----------------------------------------------------------
+// When the next gift is ready, in this browser's clock (the server's answers say it in theirs).
+let giftReadyAt = 0
+export const giftReadyIn = () => Math.max(0, giftReadyAt - Date.now())
+export const startGiftCooldown = (ms) => (giftReadyAt = Date.now() + ms)
+const fromServer = (m) => {
+  if (Number.isFinite(m?.readyAt) && Number.isFinite(m?.serverTime)) giftReadyAt = Date.now() + (m.readyAt - m.serverTime)
+}
+let adWaiter = null
+// The rewarded ad's token to the server, which asks Bloxity: resolves its answer
+// { ok, reason? } or null when there is no server / no answer in time.
+export function claimAdReward(rewardToken) {
+  if (!net.connected) return Promise.resolve(null)
+  return new Promise((resolve) => {
+    adWaiter = resolve
+    send('adReward', { rewardToken })
+    setTimeout(() => {
+      if (adWaiter !== resolve) return
+      adWaiter = null
+      resolve(null)
+    }, 12000)
+  })
 }
 
 // --- Gems -----------------------------------------------------------------------
@@ -276,6 +301,11 @@ function attach(room) {
     loadedId = sentId
     lastSaved = ''
     saveNow()
+  })
+  room.onMessage('adReward', (m) => {
+    fromServer(m)
+    adWaiter?.(m)
+    adWaiter = null
   })
   room.onMessage('gems', (m) => {
     if (Number.isFinite(m?.gems)) setGems(m.gems)
