@@ -13,6 +13,7 @@ import { bikeModel } from './bikes3d.js'
 import { CATALOG } from './bikeart.js'
 import { label } from './propkit.js'
 import { createBubble } from './bubble.js'
+import { createTrail } from './trails.js'
 import { playEmote } from './avatar/emotes.js'
 import { buildDefaultCharacter, loadBaseCharacter } from './avatar/character.js'
 import { applyProportions, attachEquippedAccessories } from './avatar/loader.js'
@@ -43,6 +44,7 @@ class Remote {
     this.base = { x: 0, y: 0, z: 0, yaw: 0, speed: 0, at: 0, key: '' }
     this.lastY = 0
     this.vy = 0
+    this.trail = createTrail(scene) // their equipped trail, laid in the world behind them
     this.setAvatar(buildDefaultCharacter())
   }
 
@@ -146,6 +148,7 @@ class Remote {
     this.vy = this.placed && dt > 0 ? this.vy + ((g.position.y - this.lastY) / dt - this.vy) * Math.min(1, dt * 10) : 0
     this.lastY = g.position.y
     this.placed = true
+    this.trail.update(dt, p.trail, g.position.x, g.position.y, g.position.z, near)
 
     const wheels = this.bike?.userData.wheels
     if (wheels && b.speed > 0.1) for (const w of wheels) w.rotation.z -= (b.speed * dt) / (0.42 * (p.state === 1 ? RIDE.bikeScale : BASE.hold.scale))
@@ -163,11 +166,13 @@ class Remote {
   hide() {
     this.group.visible = false
     this.placed = false // snap into place when it comes back
+    this.trail.clear()
   }
 
   dispose() {
     this.generation++ // an avatar still loading is dropped
     this.bubble.clear()
+    this.trail.dispose()
     this.scene.remove(this.group)
     disposeAnimator(this.animator)
     this.ride.remove(this.avatar) // rig geometry is shared with every other character

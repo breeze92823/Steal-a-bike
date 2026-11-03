@@ -28,6 +28,7 @@ import { createBubble } from './bubble.js'
 import { playEmote } from './avatar/emotes.js'
 import { createRemotePlayers } from './remotePlayers.js'
 import { equippedTrail } from './trailshop.js'
+import { createTrail } from './trails.js'
 import { createItems } from './items.js'
 import { bicycle } from './kit.js'
 import { createPostFx } from './postfx.js'
@@ -166,6 +167,7 @@ const base = createBase({ hud, camera, holder })
 // The game server (saves, the MOST CASH board, other players). Every saved window has registered
 // itself by now; the server's save is applied once the connection answers.
 const remotes = createRemotePlayers(scene)
+const myTrail = createTrail(scene)
 initNet({ hud })
 
 // Every plot is a player's base (plots.js): yours from your own state, everyone else's from the
@@ -298,6 +300,7 @@ function frame() {
   // Others see where you are, what you ride and your trail (net.js throttles and skips duplicates).
   sendPose({ x: round2(p.x), y: round2(p.y), z: round2(p.z), yaw: round2(player.facing), speed: round2(speed), state: onBike ? 1 : player.holding ? 2 : 0 })
   sendLoadout({ trail: equippedTrail()?.id ?? '', bike: player.holding ?? '' })
+  myTrail.update(dt, equippedTrail()?.id ?? '', p.x, p.y, p.z) // your own, so you see what they see
   remotes.update(dt, p)
   if (base.version !== sentBase || training.level !== sentLevel) {
     sentBase = base.version

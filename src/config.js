@@ -679,6 +679,16 @@ export const NET = {
   remoteFade: 140, // m: others further away than this are not drawn
   detailRange: 45, // m: trail and bike tag only up close
 }
+// The ribbon an equipped trail leaves behind a player (trails.js).
+export const TRAIL_FX = {
+  samples: 48, // points kept per player
+  step: 0.3, // m between points
+  life: 1.6, // s a point lasts
+  width: 0.9, // m at the start
+  lift: 0.15, // m above their feet
+  alpha: 0.85,
+  jump: 12, // m: a bigger gap (teleport, respawn) starts a new ribbon
+}
 // The boards on Bloxity's own trophy button (bloxity.js declares them; the game server reports the
 // scores). Most Cash first: the portal opens on it. Keep in step with the backend's PLATFORM_BOARDS.
 export const LEADERBOARDS = [
