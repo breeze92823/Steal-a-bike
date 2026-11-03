@@ -182,6 +182,15 @@ export function onGems(fn) {
   return () => gemListeners.delete(fn)
 }
 
+// --- Offline earnings ----------------------------------------------------------
+// The server pays what the base earned while you were away (already inside the loaded cash) and
+// tells us how much: fn({ cash, seconds }) once per load (welcome.js shows the window).
+const offlineListeners = new Set()
+export function onOfflineEarnings(fn) {
+  offlineListeners.add(fn)
+  return () => offlineListeners.delete(fn)
+}
+
 // --- Leaderboard ---------------------------------------------------------------
 const boardListeners = new Set()
 // fn(data) when the server sends the lists (now, if it already has). Returns an unsubscribe.
@@ -294,6 +303,8 @@ function attach(room) {
     loadedId = sentId
     hydrate(doc)
     saveNow() // fills in whatever an older save lacked
+    const away = doc.offline
+    if (away && Number.isFinite(away.cash) && away.cash > 0) for (const fn of offlineListeners) fn(away)
   })
   room.onMessage('noProgress', () => {
     // New account, guest or no database: keep the local progress and push it as the first save.
