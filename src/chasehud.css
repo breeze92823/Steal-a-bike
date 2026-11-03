@@ -1,0 +1,413 @@
+/* Steal prompt + chase view (chasehud.js). Lives inside .hud, so --u applies. */
+
+/* While you ride off with a stolen bike the lobby HUD steps aside (the item hotbar stays: items.js). */
+body.chasing .hud-left,
+body.chasing .hud-money,
+body.chasing .hud-ride,
+body.chasing .hud-topright,
+body.chasing .hud-starter,
+body.chasing .hud-x2,
+body.chasing .hud-boost,
+body.chasing .hud-timers,
+body.chasing .hud-zonepill,
+body.chasing .hud-zonecard,
+body.chasing .hud-announce {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  transition: opacity 0.2s, visibility 0s 0.2s;
+}
+
+/* --- STEAL prompt (a dark tag over the bike) --- */
+.chase-prompt {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: none;
+  align-items: center;
+  gap: calc(var(--u) * 12);
+  padding: calc(var(--u) * 10) calc(var(--u) * 22) calc(var(--u) * 10) calc(var(--u) * 12);
+  min-height: 44px;
+  border: 0;
+  border-radius: calc(var(--u) * 8);
+  background: rgba(22, 22, 28, 0.74);
+  color: #fff;
+  font-family: 'Gotham', 'Montserrat', system-ui, sans-serif;
+  pointer-events: auto;
+  touch-action: none;
+  cursor: pointer;
+  will-change: transform;
+}
+.chase-prompt.show {
+  display: flex;
+}
+.chase-prompt .key {
+  width: calc(var(--u) * 52);
+  height: calc(var(--u) * 52);
+  min-width: 30px;
+  min-height: 30px;
+  border-radius: 50%;
+  border: calc(var(--u) * 3) solid rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.12);
+  display: grid;
+  place-items: center;
+}
+.chase-prompt .key i {
+  font-style: normal;
+  font-weight: 600;
+  font-size: calc(var(--u) * 18);
+  width: calc(var(--u) * 26);
+  height: calc(var(--u) * 26);
+  border: calc(var(--u) * 2) solid #fff;
+  border-radius: calc(var(--u) * 5);
+  display: grid;
+  place-items: center;
+  line-height: 1;
+}
+.chase-prompt .key i:empty::before {
+  content: '';
+  width: 40%;
+  height: 40%;
+  border-radius: 50%;
+  background: #fff;
+}
+.chase-prompt .txt {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.15;
+}
+.chase-prompt small {
+  font-size: calc(var(--u) * 15);
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.72);
+}
+.chase-prompt b {
+  font-size: calc(var(--u) * 24);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* --- Red pulsing screen edges --- */
+.chase-vignette {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  box-shadow: inset 0 0 0 calc(var(--u) * 12) #ff1018, inset 0 0 calc(var(--u) * 190) calc(var(--u) * 40) rgba(255, 12, 18, 0.62);
+  transition: opacity 0.35s;
+}
+body.chasing .chase-vignette {
+  opacity: 1;
+  animation: chase-pulse 0.9s ease-in-out infinite;
+}
+@keyframes chase-pulse {
+  50% {
+    opacity: 0.72;
+  }
+}
+
+/* --- Speed lines streaking out from the centre --- */
+.chase-lines {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  opacity: var(--speed, 0);
+  transition: opacity 0.3s;
+}
+.chase-lines i {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 2px;
+  height: 22vmax;
+  background: linear-gradient(rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.7));
+  transform-origin: 50% 0;
+  animation: chase-streak 0.55s linear infinite;
+  animation-delay: var(--d);
+}
+@keyframes chase-streak {
+  from {
+    transform: rotate(var(--a)) translateY(18vmax);
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  to {
+    transform: rotate(var(--a)) translateY(60vmax);
+    opacity: 0;
+  }
+}
+
+/* --- DRIVE! --- */
+.chase-drive {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--u) * 70 + var(--safe-t));
+  transform: translateX(-50%) scale(0);
+  padding: calc(var(--u) * 6) calc(var(--u) * 22) calc(var(--u) * 2);
+  background: #e3141e;
+  border: calc(var(--u) * 5) solid #111;
+  box-shadow: 0 calc(var(--u) * 6) 0 rgba(0, 0, 0, 0.25);
+  opacity: 0;
+}
+.chase-drive span {
+  display: block;
+  font-family: 'Arial Black', 'Helvetica Neue', Arial, sans-serif;
+  font-weight: 900;
+  font-size: calc(var(--u) * 104);
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+  color: #fff;
+  -webkit-text-stroke: calc(var(--u) * 7) #111;
+  paint-order: stroke fill;
+}
+.chase-drive.show {
+  animation: chase-pop 0.42s cubic-bezier(0.2, 1.6, 0.4, 1) forwards;
+}
+@keyframes chase-pop {
+  from {
+    transform: translateX(-50%) scale(0.2) rotate(-6deg);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(-50%) scale(1);
+    opacity: 1;
+  }
+}
+
+/* --- USE SHIFT TO WHEELIE --- */
+.chase-tip {
+  position: absolute;
+  right: calc(var(--u) * 104 + var(--safe-r));
+  top: calc(var(--u) * 34 + var(--safe-t));
+  font-family: 'Luckiest Guy', 'Fredoka', 'Arial Black', sans-serif;
+  font-weight: 700;
+  font-size: calc(var(--u) * 46);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  background: linear-gradient(#ffe33a 20%, #ff9a12 80%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-stroke: calc(var(--u) * 2.5) #5a2200;
+  filter: drop-shadow(0 calc(var(--u) * 3) 0 #3a1400);
+  opacity: 0;
+  transition: opacity 0.3s, transform 0.15s;
+}
+.chase-tip.show {
+  opacity: 1;
+}
+.chase-tip.active {
+  transform: scale(1.08) rotate(-2deg);
+}
+
+/* --- Speedometer: MPH box, gear, rev bars --- */
+.chase-speedo {
+  position: absolute;
+  left: calc(var(--u) * 84 + var(--safe-l));
+  bottom: calc(var(--u) * 52 + var(--safe-b));
+  width: calc(var(--u) * 390);
+  height: calc(var(--u) * 220);
+  opacity: 0;
+  transform: translateY(calc(var(--u) * 30));
+  transition: opacity 0.3s, transform 0.3s;
+}
+body.chasing .chase-speedo {
+  opacity: 1;
+  transform: none;
+}
+.chase-speedo .mph {
+  position: absolute;
+  left: 0;
+  bottom: calc(var(--u) * 62);
+  width: calc(var(--u) * 258);
+  height: calc(var(--u) * 62);
+  border-radius: calc(var(--u) * 16);
+  background: rgba(28, 28, 34, 0.82);
+}
+.chase-speedo .mph b {
+  position: absolute;
+  left: 0;
+  width: calc(var(--u) * 200);
+  bottom: calc(var(--u) * -4);
+  text-align: center;
+  font-family: 'Gotham', 'Montserrat', system-ui, sans-serif;
+  font-style: italic;
+  font-weight: 700;
+  font-size: calc(var(--u) * 74);
+  line-height: 1;
+  color: #fff;
+}
+.chase-speedo .mph span {
+  position: absolute;
+  right: calc(var(--u) * 12);
+  bottom: calc(var(--u) * 6);
+  font-family: 'Gotham', 'Montserrat', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: calc(var(--u) * 26);
+  color: #e8e8ee;
+}
+.chase-speedo .gear {
+  position: absolute;
+  right: 0;
+  bottom: calc(var(--u) * 152);
+  width: calc(var(--u) * 60);
+  height: calc(var(--u) * 68);
+  border-radius: calc(var(--u) * 10);
+  background: rgba(28, 28, 34, 0.86);
+  display: grid;
+  place-items: center;
+  font-family: 'Gotham', 'Montserrat', system-ui, sans-serif;
+  font-weight: 800;
+  font-size: calc(var(--u) * 54);
+  color: #fff;
+}
+.chase-speedo .gear.shift {
+  animation: chase-gear 0.25s ease-out;
+}
+@keyframes chase-gear {
+  from {
+    transform: scale(1.3);
+    color: #ffb02a;
+  }
+}
+.chase-speedo .bars {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc(var(--u) * 150);
+  display: flex;
+  align-items: flex-end;
+  gap: calc(var(--u) * 4);
+}
+.chase-speedo .bars i {
+  flex: 1;
+  border-radius: calc(var(--u) * 4) calc(var(--u) * 4) calc(var(--u) * 2) calc(var(--u) * 2);
+  background: rgba(40, 40, 46, 0.85);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.6);
+}
+.chase-speedo .bars i.on {
+  background: linear-gradient(#ffd23a, #ff8a12);
+  box-shadow: inset 0 0 0 1px rgba(90, 30, 0, 0.6), 0 0 calc(var(--u) * 8) rgba(255, 150, 30, 0.6);
+}
+
+/* --- Touch: hold-to-wheelie button; the speedo moves out of the joystick's way --- */
+.chase-wheelie {
+  display: none;
+  position: absolute;
+  right: calc(var(--u) * 40 + var(--safe-r));
+  bottom: 46%;
+  width: calc(var(--u) * 150);
+  height: calc(var(--u) * 150);
+  min-width: 72px;
+  min-height: 72px;
+  border-radius: 50%;
+  border: 4px solid #5a2200;
+  background: radial-gradient(circle at 40% 35%, #ffe33a, #ff8a12);
+  color: #fff;
+  font: 700 clamp(13px, calc(var(--u) * 26), 22px) 'Fredoka', sans-serif;
+  -webkit-text-stroke: 3px #5a2200;
+  paint-order: stroke fill;
+  pointer-events: auto;
+  touch-action: none;
+}
+.chase-wheelie.on {
+  transform: scale(0.92);
+  filter: brightness(1.15);
+}
+body.chasing-touch .chase-wheelie {
+  display: block;
+}
+body.chasing-touch .chase-speedo {
+  bottom: auto;
+  top: calc(var(--reserved-top, 0px) + var(--u) * 20 + var(--safe-t));
+  transform-origin: 0 0;
+  scale: 0.72;
+}
+
+/* --- Result card --- */
+.chase-result {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--u) * 58 + var(--safe-t));
+  transform: translateX(-50%) scale(0);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--u) * 10);
+  opacity: 0;
+}
+.chase-result .card {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--u) * 12);
+  padding: calc(var(--u) * 8) calc(var(--u) * 26) calc(var(--u) * 8) calc(var(--u) * 12);
+  border: calc(var(--u) * 5) solid #f4fbff;
+  outline: calc(var(--u) * 3) solid #0a2a60;
+  background: linear-gradient(#5fd8ff, #1e8cff 60%, #1a6ae0);
+  box-shadow: 0 calc(var(--u) * 8) calc(var(--u) * 20) rgba(0, 0, 0, 0.3);
+}
+.chase-result svg {
+  width: calc(var(--u) * 86);
+  height: auto;
+}
+.chase-result b {
+  font-family: 'Fredoka', 'Arial Black', sans-serif;
+  font-size: calc(var(--u) * 88);
+  line-height: 1.05;
+  color: #fff;
+  -webkit-text-stroke: calc(var(--u) * 6) #0a2a60;
+  paint-order: stroke fill;
+}
+.chase-result .sub {
+  font-size: calc(var(--u) * 30);
+  color: #fff;
+  -webkit-text-stroke: calc(var(--u) * 5) #1a1230;
+  paint-order: stroke fill;
+  white-space: nowrap;
+}
+.chase-result.busted .card {
+  background: linear-gradient(#ff7a7a, #e3141e 60%, #b00a12);
+  outline-color: #3a0006;
+}
+.chase-result.busted b {
+  -webkit-text-stroke-color: #3a0006;
+}
+.chase-result.show {
+  animation: chase-card 2.6s ease forwards;
+}
+@keyframes chase-card {
+  0% {
+    transform: translateX(-50%) scale(0.3);
+    opacity: 0;
+  }
+  10% {
+    transform: translateX(-50%) scale(1.12);
+    opacity: 1;
+  }
+  16%,
+  85% {
+    transform: translateX(-50%) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(-50%) translateY(calc(var(--u) * -30)) scale(0.9);
+    opacity: 0;
+  }
+}
+
+@media (orientation: portrait) {
+  .chase-tip {
+    font-size: calc(var(--u) * 36);
+    right: 50%;
+    transform: translateX(50%);
+    top: calc(var(--u) * 260 + var(--safe-t));
+  }
+  body.chasing-touch .chase-tip {
+    top: calc(var(--reserved-top, 0px) + var(--u) * 200 + var(--safe-t));
+  }
+  .chase-tip.active {
+    transform: translateX(50%) scale(1.08);
+  }
+}

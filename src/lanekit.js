@@ -4,7 +4,10 @@ import { put, solidBox } from './propkit.js'
 import { mulberry32 } from './textures.js'
 import { canvasTexture, meterBox, meterPlane, outlinedText, plain, sbox, studMat } from './kit.js'
 import { parkingBay } from './vehicles.js'
-import { sparkles } from './fx.js'
+import { sparkles, zzz } from './fx.js'
+import { bake } from './bake.js'
+import { addSnore } from './audio.js'
+import { addBike, addGuard } from './heist.js'
 
 // Pieces every zone of the north lane is built from: studded floor slabs
 // (each zone sits at its own height), patches, pixel puddles, grass clumps,
@@ -153,6 +156,26 @@ export function place(root, obj, x, y, z, yaw) {
   obj.rotation.y = yaw
   root.add(obj)
   return obj
+}
+
+// A guard vehicle (finishGuard output) asleep at (x, y, z) facing yaw, its Zs
+// rising from zzzAt, snoring, registered so stealing one of its bikes wakes it.
+export function sleepingGuard(root, vehicle, x, y, z, yaw, { tier = 0, zzzAt = null, phase = 0, collider = null, bay = null } = {}) {
+  if (bay) parked(root, vehicle, x, y, z, yaw, bay[0], bay[1])
+  else place(root, vehicle, x, y, z, yaw)
+  const [zx, zy, zz] = zzzAt ?? [x, y + (vehicle.userData.zzz ?? 3), z]
+  const z3 = zzz(root, zx, zy, zz, phase)
+  const snore = addSnore(x, y + 1, z)
+  return addGuard(root, vehicle, { tier, zzz: z3, snore, collider })
+}
+
+// A bike you can steal, standing in a dashed bay: `make()` builds the model
+// (baked here for the bay, built fresh when you ride it), `guard` wakes when
+// it goes. `extras` (its tag, aura) hide while it is gone.
+export function stealBay(root, make, x, y, z, yaw, { name, guard = null, value = 100, bayW = 1.8, bayD = 1.0, extras = [] } = {}) {
+  const shown = bake(make(), true)
+  parked(root, shown, x, y, z, yaw, bayW, bayD)
+  return addBike(root, shown, { make, name, guard, value, extras })
 }
 
 // A vehicle standing in a dashed bay.

@@ -1,0 +1,65 @@
+/* "E Place Bike" under the player on your plot (base.js): the same dark key
+   pill as the STEAL prompt, smaller, one line. */
+.base-prompt {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: none;
+  align-items: center;
+  gap: calc(var(--u) * 12);
+  padding: calc(var(--u) * 9) calc(var(--u) * 22) calc(var(--u) * 9) calc(var(--u) * 10);
+  min-height: 44px;
+  border: 0;
+  border-radius: calc(var(--u) * 8);
+  background: rgba(22, 22, 28, 0.74);
+  color: #fff;
+  font-family: 'Gotham', 'Montserrat', system-ui, sans-serif;
+  pointer-events: auto;
+  touch-action: none;
+  cursor: pointer;
+  will-change: transform;
+}
+.base-prompt.show {
+  display: flex;
+}
+.base-prompt .key {
+  width: calc(var(--u) * 46);
+  height: calc(var(--u) * 46);
+  min-width: 30px;
+  min-height: 30px;
+  border-radius: 50%;
+  border: calc(var(--u) * 3) solid rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.12);
+  display: grid;
+  place-items: center;
+}
+.base-prompt .key i {
+  font-style: normal;
+  font-weight: 600;
+  font-size: max(11px, calc(var(--u) * 16));
+  width: calc(var(--u) * 24);
+  height: calc(var(--u) * 24);
+  min-width: 16px;
+  min-height: 16px;
+  border: calc(var(--u) * 2) solid #fff;
+  border-radius: calc(var(--u) * 5);
+  display: grid;
+  place-items: center;
+  line-height: 1;
+}
+.base-prompt .key svg {
+  width: 62%;
+  height: 62%;
+  padding: 8%;
+  border-radius: 22%;
+  background: #fff;
+  box-sizing: border-box;
+}
+.base-prompt .txt {
+  font-size: max(13px, calc(var(--u) * 22));
+  font-weight: 500;
+  white-space: nowrap;
+}
+.base-prompt.full .txt {
+  color: #ff8a8a;
+}

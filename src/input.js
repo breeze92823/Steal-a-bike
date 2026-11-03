@@ -10,6 +10,7 @@ export const inputState = {
   zoom: 0, // wheel notches since the camera last read them (+ = away)
   sprint: false,
   jump: false, // edge: cleared by player.js
+  wheelie: false, // Shift held (or the touch WHEELIE button) while riding a stolen bike
 }
 
 // One wheel notch per WheelEvent.deltaMode (pixels, lines, pages), so a trackpad
@@ -17,10 +18,10 @@ export const inputState = {
 const NOTCH_PER_DELTA = [1 / 100, 1 / 3, 1]
 
 const held = new Set()
-const keyActions = new Map() // code -> fn, for one-shot keys (mode toggle, day/night...)
+const keyActions = new Map() // code -> [fn], for one-shot keys (mode toggle, day/night...)
 let orbiting = false // right-drag fallback where pointer lock is refused
 let canvas = null
-const touch = { x: 0, z: 0, sprint: false }
+const touch = { x: 0, z: 0, sprint: false, wheelie: false }
 
 export const isLocked = () => !!canvas && document.pointerLockElement === canvas
 // Pointer lock can reject (sandboxed frame, post-Escape cooldown); that is not a fault.
@@ -30,9 +31,15 @@ export function requestLock() {
   if (r instanceof Promise) r.catch(() => {})
 }
 
-// Registers a one-shot key (fires on keydown, never on auto-repeat).
+// Whether a key is down right now (hold-to-interact prompts).
+export const isHeld = (code) => held.has(code)
+
+// Registers a one-shot key (fires on keydown, never on auto-repeat). A key can
+// have several handlers (E: treadmill, steal); each checks its own context.
 export function onKey(code, fn) {
-  keyActions.set(code, fn)
+  const list = keyActions.get(code)
+  if (list) list.push(fn)
+  else keyActions.set(code, [fn])
 }
 
 function recomputeMove() {
@@ -45,6 +52,15 @@ function recomputeMove() {
   inputState.move.x = Math.max(-1, Math.min(1, x + touch.x))
   inputState.move.z = Math.max(-1, Math.min(1, z + touch.z))
   inputState.sprint = held.has('ShiftLeft') || held.has('ShiftRight') || touch.sprint
+  inputState.wheelie = held.has('ShiftLeft') || held.has('ShiftRight') || touch.wheelie
+}
+
+// Lets go of everything held: an ad break or the portal taking the cursor swallows the key-ups.
+export function releaseInput() {
+  held.clear()
+  orbiting = false
+  inputState.jump = false
+  recomputeMove()
 }
 
 // Joystick vector, each axis -1..1 (analog: a half tilt walks at half speed).
@@ -56,6 +72,11 @@ export function setTouchMove(x, z) {
 
 export function setTouchSprint(on) {
   touch.sprint = on
+  recomputeMove()
+}
+
+export function setTouchWheelie(on) {
+  touch.wheelie = on
   recomputeMove()
 }
 
@@ -74,7 +95,7 @@ export function install(showMenu, canvasEl) {
     }
     held.add(e.code)
     if (e.code === 'Space') inputState.jump = true
-    keyActions.get(e.code)?.()
+    for (const fn of keyActions.get(e.code) ?? []) fn()
     recomputeMove()
   })
   window.addEventListener('keyup', (e) => {

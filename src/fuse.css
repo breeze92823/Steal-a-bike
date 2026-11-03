@@ -1,0 +1,131 @@
+/* The Fuse Machine window's tiers (fuse.js); the shell is shopwin.css, the list box is in windows.css. */
+.fz-card {
+  position: relative;
+  margin-bottom: calc(var(--u) * 8);
+  padding: calc(var(--u) * 6) calc(var(--u) * 24) calc(var(--u) * 10) calc(var(--u) * 24);
+  background: rgba(30, 28, 36, 0.62);
+  border: calc(var(--u) * 4) solid rgba(18, 20, 32, 0.95);
+}
+.fz-title {
+  font-size: max(18px, calc(var(--u) * 54));
+  padding: calc(var(--u) * 6) 0 calc(var(--u) * 10) calc(var(--u) * 24);
+}
+.fz-row {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--u) * 46);
+}
+.fz-tile {
+  position: relative;
+  flex: none;
+  width: max(64px, calc(var(--u) * 160));
+  height: max(48px, calc(var(--u) * 130));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding: calc(var(--u) * 6) calc(var(--u) * 4) calc(var(--u) * 4);
+  box-sizing: border-box;
+  background: rgba(40, 46, 66, 0.7);
+  border: calc(var(--u) * 3) solid #1d2a48;
+}
+.fz-tile .bike-art {
+  position: absolute;
+  left: calc(var(--u) * 14);
+  right: calc(var(--u) * 14);
+  top: calc(var(--u) * 4);
+  width: calc(100% - var(--u) * 28);
+  opacity: 0.45;
+}
+.fz-tile.have .bike-art,
+.fz-tile.out .bike-art {
+  opacity: 1;
+}
+.fz-tile .nm {
+  position: relative;
+  font-size: max(11px, calc(var(--u) * 28));
+  text-align: center;
+  white-space: normal;
+  line-height: 0.95;
+}
+.fz-tile .nm.long {
+  font-size: max(9px, calc(var(--u) * 20));
+}
+.fz-row .eq {
+  flex: none;
+  width: calc(var(--u) * 28);
+  height: calc(var(--u) * 24);
+  margin: 0 calc(var(--u) * -20);
+  border-top: calc(var(--u) * 8) solid #fff;
+  border-bottom: calc(var(--u) * 8) solid #fff;
+  box-sizing: border-box;
+  filter: drop-shadow(0 calc(var(--u) * 3) 0 #1a1230);
+}
+.fz-row .eq + .fz-tile {
+  margin-left: auto;
+}
+.fz-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: calc(var(--u) * 8);
+  padding-left: calc(var(--u) * 6);
+}
+.fz-count {
+  font-size: max(18px, calc(var(--u) * 48));
+}
+.hud .fz-btn {
+  width: max(110px, calc(var(--u) * 206));
+  height: max(44px, calc(var(--u) * 62));
+  font-size: max(18px, calc(var(--u) * 40));
+}
+.hud .fz-btn.off {
+  filter: saturate(0.55) brightness(0.8);
+}
+/* A locked tier: dimmed, with the padlock and the tier to finish over it. */
+.fz-card.locked > :not(.fz-locked) {
+  opacity: 0.42;
+}
+.fz-locked {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.fz-locked[hidden] {
+  display: none;
+}
+.hud .fz-locked .fz-lock {
+  width: calc(var(--u) * 144);
+  min-width: 44px;
+  margin-top: calc(var(--u) * -34);
+  filter: drop-shadow(0 calc(var(--u) * 5) 0 rgba(0, 0, 0, 0.3));
+}
+.fz-locked .ot {
+  font-size: max(16px, calc(var(--u) * 48));
+  margin-top: calc(var(--u) * -6);
+}
+@media (max-width: 600px) {
+  .fz-row {
+    gap: 6px;
+  }
+  .fz-tile {
+    width: 24%;
+  }
+  .fz-row .eq {
+    width: 12px;
+    height: 12px;
+    margin: 0 -6px;
+    border-width: 3px 0;
+  }
+  .fz-card {
+    padding: 4px 8px 8px;
+  }
+  .fz-title {
+    padding-left: 4px;
+  }
+}

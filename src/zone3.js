@@ -1,29 +1,29 @@
 import { LANE, LAYOUT } from './config.js'
 import { mulberry32 } from './textures.js'
-import { motorbike } from './kit.js'
 import { BROWN_CLIFF, terraceWall } from './lobby.js'
-import { zzz } from './fx.js'
-import { addSnore } from './audio.js'
-import { swatVan } from './vehicles.js'
-import { cactus, floor, parked, patch, place, postSign, SOUTH } from './lanekit.js'
+import { solidBox } from './propkit.js'
+import { fleetVehicle } from './fleet.js'
+import { bayBike } from './zones.js'
+import { cactus, floor, patch, place, postSign, sleepingGuard, SOUTH } from './lanekit.js'
 
 // Zone 3: the sand, back down off zone 2's plateau. The cliffs here have
 // yellow tops instead of grass, lego cacti stand on sand blocks along both
-// walls, and the guard post is the navy SWAT van with three motorbikes and a
-// "4K Recommended" sign.
+// walls, and the guard post is the navy S.W.A.T. truck with three of the
+// Desert's Index bikes (tagged) and a "4K Recommended" sign.
 const L = LAYOUT
 const Z = LANE.zone3
 const hw = L.valley.halfWidth
 const SAND_CLIFF = { ...BROWN_CLIFF, top: '#cdc92e', band: null }
 
 function swatPost(root, x0, z0, y) {
-  place(root, swatVan(), x0 - 1, y, z0 - 2, SOUTH - 0.2)
-  zzz(root, x0 - 0.8, y + 4.2, z0 - 1.8, 1.1)
-  addSnore(x0, 1, z0)
-  parked(root, motorbike('#ff8a1a', '#24242c', '#d9dee6'), x0 - 2.6, y, z0 + 2.6, SOUTH - 0.4, 2.0, 1.1)
-  parked(root, motorbike('#c03ad8', '#2a1030', '#e0c6f0'), x0 + 1.4, y, z0 + 3.4, SOUTH + 0.15, 2.0, 1.1)
-  parked(root, motorbike('#ff9a2a', '#1f4fd8', '#cfd6e0'), x0 + 3.2, y, z0 + 1.6, Math.PI + 0.35, 2.0, 1.1)
-  place(root, postSign(Z.recommended), x0 + 0.8, y, z0 + 0.6, -0.35)
+  const yaw = SOUTH - 0.2
+  const collider = solidBox(2.9, 1.4, 1.1, x0 - 1, y + 1.4, z0 - 2, yaw)
+  const guard = sleepingGuard(root, fleetVehicle('swatArmor'), x0 - 1, y, z0 - 2, yaw, { tier: 2, zzzAt: [x0 - 0.8, y + 4.8, z0 - 1.8], phase: 1.1, collider })
+  const rand = mulberry32(331)
+  bayBike(root, 'Dune Racer', x0 - 2.8, y, z0 + 3.4, SOUTH - 0.4, rand, guard)
+  bayBike(root, 'Sand Viper', x0 + 1.0, y, z0 + 4.2, SOUTH + 0.15, rand, guard)
+  bayBike(root, 'Desert Fox', x0 + 3.4, y, z0 + 2.0, Math.PI + 0.35, rand, guard)
+  place(root, postSign(Z.recommended), x0 + 1.6, y, z0 + 1.2, -0.35)
 }
 
 export function buildZone3(root) {

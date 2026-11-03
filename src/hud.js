@@ -1,15 +1,13 @@
 import './hud.css'
-import { ANNOUNCE, HUD_START, LAYOUT, SLOW_MODE_SCALE, TIMERS } from './config.js'
+import { ANNOUNCE, HUD_START, ITEMS, LAYOUT, SLOW_MODE_SCALE } from './config.js'
 import { onKey } from './input.js'
 import { player } from './player.js'
 import { onReservedAreas } from './bloxity.js'
-import { eventStatus, mmss, raceStatus } from './timers.js'
 import { isMuted, setMuted } from './audio.js'
 
-// The lobby HUD: Battle Pass / Shop / Index / Slow Mode down the left, gems and
-// cash bottom left, the two-slot hotbar bottom centre, and on the right Daily
-// Rewards, the Starter Pack, x2 Speed with its boost timer, and the event and
-// race countdowns. Out past the SAFE ZONE line, Ride My Bike (and its gear
+// The lobby HUD: Index / Slow Mode down the left, speed (the
+// bike counter, trained on the treadmill) and cash bottom left, the chase-item hotbar bottom centre (items.js; it stays up in a chase), and on the right Daily
+// Rewards. Out past the SAFE ZONE line, Ride My Bike (and its gear
 // button) sits above the hotbar. Shop windows are not built yet: their buttons
 // answer with a toast.
 
@@ -25,6 +23,9 @@ const ICONS = {
   cash: `<svg viewBox="0 0 86 70"><path d="M8 30l38-18 34 14-38 20z" fill="#7fe05a" stroke="#0d3a10" stroke-width="4" stroke-linejoin="round"/><path d="M8 30v16l34 18V46z" fill="#2fa83a" stroke="#0d3a10" stroke-width="4" stroke-linejoin="round"/><path d="M42 46v18l38-20V26z" fill="#ffc21a" stroke="#0d3a10" stroke-width="4" stroke-linejoin="round"/><path d="M28 20l34 14" stroke="#ffe066" stroke-width="7"/></svg>`,
   bat: `<svg viewBox="0 0 66 66"><path d="M58 6c3 3 2 7-1 10L22 50l-6-6L50 9c3-3 6-4 8-3z" fill="#f1d38a" stroke="#6b4a1a" stroke-width="3"/><path d="M16 44l6 6-8 9c-2 2-5 2-7 0s-2-5 0-7z" fill="#c9a060" stroke="#6b4a1a" stroke-width="3"/></svg>`,
   wire: `<svg viewBox="0 0 66 66"><g fill="none" stroke="#d4d9e2" stroke-width="3"><ellipse cx="33" cy="36" rx="24" ry="14"/><ellipse cx="33" cy="32" rx="22" ry="12"/><ellipse cx="33" cy="28" rx="20" ry="10"/></g><g stroke="#9aa3b2" stroke-width="3"><path d="M12 30l-4-4M54 30l4-4M20 44l-3 5M46 44l3 5M33 18v-6"/></g></svg>`,
+  oil: `<svg viewBox="0 0 66 66"><ellipse cx="33" cy="56" rx="26" ry="7" fill="#22222e"/><path d="M14 56c7-3 11 2 18-1s12 2 18-1" stroke="#b070ff" stroke-width="2.5" fill="none"/><path d="M33 4c9 13 15 21 15 29a15 15 0 0 1-30 0c0-8 6-16 15-29z" fill="#1a1a24" stroke="#000" stroke-width="3"/><path d="M26 30c-2 4-2 9 2 12" stroke="#6ad0ff" stroke-width="3.5" fill="none" stroke-linecap="round"/></svg>`,
+  smoke: `<svg viewBox="0 0 66 66"><circle cx="44" cy="20" r="11" fill="#cfd4dc"/><circle cx="55" cy="10" r="7" fill="#e8ecf2"/><circle cx="54" cy="27" r="6" fill="#b8bec8"/><circle cx="28" cy="42" r="17" fill="#5a6070" stroke="#1a1c24" stroke-width="3"/><path d="M34 26l8-8" stroke="#1a1c24" stroke-width="3"/><rect x="21" y="20" width="13" height="8" rx="2" fill="#ffb21a" stroke="#1a1c24" stroke-width="3"/><path d="M19 38c2-4 6-7 11-7" stroke="#9aa3b2" stroke-width="3.5" fill="none" stroke-linecap="round"/></svg>`,
+  nitro: `<svg viewBox="0 0 66 66"><path d="M24 14h18v6l5 6v30a4 4 0 0 1-4 4H23a4 4 0 0 1-4-4V26l5-6z" fill="#2a8cff" stroke="#0a2060" stroke-width="3" stroke-linejoin="round"/><rect x="26" y="5" width="14" height="9" rx="2" fill="#d0d6de" stroke="#0a2060" stroke-width="3"/><path d="M37 28l-10 13h7l-4 12 12-16h-7l5-9z" fill="#ffe066" stroke="#5a3a00" stroke-width="2.5" stroke-linejoin="round"/></svg>`,
   starter: `<svg viewBox="0 0 150 150"><defs><radialGradient id="hs"><stop offset="0" stop-color="#5fe4ff"/><stop offset="1" stop-color="#1a4fd0"/></radialGradient></defs>
     <circle cx="75" cy="75" r="70" fill="url(#hs)" stroke="#0b1a3a" stroke-width="6"/>
     <g transform="translate(66 24)"><path d="M0 22l40-18 28 12-40 20z" fill="#7fe05a" stroke="#0d3a10" stroke-width="3"/><path d="M0 22v14l28 14V36z" fill="#2fa83a" stroke="#0d3a10" stroke-width="3"/><path d="M28 36v14l40-20V16z" fill="#ffc21a" stroke="#0d3a10" stroke-width="3"/></g>
@@ -34,7 +35,6 @@ const ICONS = {
   boost: `<svg viewBox="0 0 58 50"><circle cx="12" cy="36" r="9" fill="#123" stroke="#7fd8ff" stroke-width="4"/><circle cx="46" cy="36" r="9" fill="#123" stroke="#7fd8ff" stroke-width="4"/><path d="M8 30l10-14 16-2 10 6 8-4 4 8-10 6H26z" fill="#2a9cff" stroke="#0a2060" stroke-width="3"/></svg>`,
   pumpkin: `<svg viewBox="0 0 60 60"><path d="M30 8c2-6 8-6 10-4-4 1-6 4-7 8" fill="#3f8a22"/><ellipse cx="30" cy="36" rx="26" ry="20" fill="#ff7a12" stroke="#7a2a00" stroke-width="3"/><path d="M30 16v40M18 18c-6 10-6 26 0 36M42 18c6 10 6 26 0 36" stroke="#d9580a" stroke-width="3" fill="none"/>
     <path d="M17 30l6-6 5 7zM43 30l-6-6-5 7z" fill="#4a1a00"/><path d="M16 40c8 8 20 8 28 0l-4 8h-20z" fill="#4a1a00"/></svg>`,
-  gear: `<svg viewBox="0 0 64 64"><path d="M27 4h10l2 8 6 3 7-4 7 7-4 7 3 6 8 2v10l-8 2-3 6 4 7-7 7-7-4-6 3-2 8H27l-2-8-6-3-7 4-7-7 4-7-3-6-8-2V27l8-2 3-6-4-7 7-7 7 4 6-3z" fill="#3d8cff" stroke="#123a8a" stroke-width="3" stroke-linejoin="round"/><circle cx="32" cy="32" r="10" fill="#6f7a90" stroke="#123a8a" stroke-width="3"/></svg>`,
   speaker: `<svg viewBox="0 0 48 48"><path d="M8 18h8l10-8v28l-10-8H8z" fill="#fff" stroke="#1a1230" stroke-width="3" stroke-linejoin="round"/><path class="waves" d="M31 17c3 3 3 11 0 14M36 12c6 6 6 18 0 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round"/><path class="cross" d="M32 18l12 12M44 18L32 30" stroke="#ff4a5a" stroke-width="4" stroke-linecap="round"/></svg>`,
   flag: `<svg viewBox="0 0 60 60"><path d="M10 6v52" stroke="#555" stroke-width="5"/><path d="M12 8h40v28H12z" fill="#fff" stroke="#222" stroke-width="2"/>
     <g fill="#111"><rect x="12" y="8" width="8" height="7"/><rect x="28" y="8" width="8" height="7"/><rect x="44" y="8" width="8" height="7"/><rect x="20" y="15" width="8" height="7"/><rect x="36" y="15" width="8" height="7"/><rect x="12" y="22" width="8" height="7"/><rect x="28" y="22" width="8" height="7"/><rect x="44" y="22" width="8" height="7"/><rect x="20" y="29" width="8" height="7"/><rect x="36" y="29" width="8" height="7"/></g></svg>`,
@@ -45,6 +45,15 @@ function el(tag, cls, html = '') {
   if (cls) e.className = cls
   e.innerHTML = html
   return e
+}
+
+export const BIKE_ICON = ICONS.bikeGem
+// The chase items' art (hotbar slots, and the crates' icons in items.js), by ITEMS kind.
+export const ITEM_ICONS = { bat: ICONS.bat, wire: ICONS.wire, oil: ICONS.oil, smoke: ICONS.smoke, nitro: ICONS.nitro }
+
+// 1234 -> 1.2K (the speed counter); shortMoney adds the $.
+export function shortNumber(n) {
+  return shortMoney(n).slice(1)
 }
 
 function shortMoney(n) {
@@ -78,11 +87,10 @@ export function createHud() {
   }
 
   // Left column.
+  let indexFn = () => say('Index coming soon') // replaced by bikeindex.js through onIndex
   const left = el('div', 'hud-left')
   left.append(
-    btn('hud-bp', `${ICONS.bell.replace('<svg', '<svg class="bell"')}<div class="banner ot">Battle Pass</div><div class="tag ot">Discount</div>`, () => say('Battle Pass coming soon')),
-    btn('hud-big hud-shop', `${ICONS.cart}<span class="ot">Shop</span><span class="hud-badge ot">!</span>`, () => say('Shop coming soon')),
-    btn('hud-big hud-index', `${ICONS.book}<span class="ot">Index</span><span class="hud-badge ot">!</span>`, () => say('Index coming soon')),
+    btn('hud-big hud-index', `${ICONS.book}<span class="ot">Index</span><span class="hud-badge ot">!</span>`, () => indexFn()),
   )
   const slow = btn('hud-slow', `<span class="sw"><span class="knob"></span></span><span class="txt ot">Slow Mode</span>`, () => {
     slow.classList.toggle('on')
@@ -92,29 +100,29 @@ export function createHud() {
 
   // Money.
   const money = el('div', 'hud-money')
-  const gemRow = el('div', 'row', `<div class="ico">${ICONS.bikeGem}<span class="plus">+</span></div><span class="hud-gems ot"></span>`)
+  const gemRow = el('div', 'row', `<div class="ico">${ICONS.bikeGem}</div><span class="hud-gems ot"></span>`)
   const cashRow = el('div', 'row', `<div class="ico">${ICONS.cash}</div><span class="hud-cash ot"></span>`)
   money.append(gemRow, cashRow)
   const gemsEl = gemRow.querySelector('.hud-gems')
+  const speedIco = gemRow.querySelector('.ico')
   const cashEl = cashRow.querySelector('.hud-cash')
 
-  // Hotbar.
+  // Hotbar: the chase items (items.js fills it through setItems), then the bike in your hands.
   const hotbar = el('div', 'hud-hotbar')
-  const slots = [
-    btn('hud-slot', `<span class="n ot">1</span>${ICONS.bat}<span class="nm ot">Bat</span>`, () => select(0)),
-    btn('hud-slot', `<span class="n ot">2</span>${ICONS.wire}<span class="cnt">x2</span><span class="nm ot">Barbed Wire</span>`, () => select(1)),
-  ]
-  let selected = -1
-  const select = (i) => {
-    selected = selected === i ? -1 : i
-    slots.forEach((s, k) => s.classList.toggle('sel', k === selected))
-  }
-  hotbar.append(...slots)
-  onKey('Digit1', () => select(0))
-  onKey('Digit2', () => select(1))
+  const slots = []
+  let slotFn = () => {} // items.js: a slot was tapped (its index)
+  let useFn = () => {} // items.js: the USE button was tapped
+  // Above the slots while an item is picked in a chase: "CLICK TO USE" (a tap button on touch).
+  const use = btn('hud-use ot', '', () => useFn())
+  // The stolen bike you are walking home (base.js), always in hand, after the items.
+  const heldSlot = btn('hud-slot sel hud-held', '<span class="n ot"></span><span class="art"></span><span class="nm ot"></span>', () => {})
+  heldSlot.style.display = 'none'
+  hotbar.append(heldSlot, use)
+  let itemCount = 0
 
   // Right side.
-  const daily = btn('hud-daily', 'Daily Rewards', () => say('Daily Rewards coming soon'))
+  let dailyFn = () => say('Daily Rewards coming soon') // replaced by daily.js through onDaily
+  const daily = btn('hud-daily', 'Daily Rewards', () => dailyFn())
   const sound = btn('hud-sound', ICONS.speaker, () => toggleSound())
   const toggleSound = () => {
     setMuted(!isMuted())
@@ -125,27 +133,18 @@ export function createHud() {
   onKey('KeyM', toggleSound)
   const topRight = el('div', 'hud-topright')
   topRight.append(sound, daily)
-  const starter = btn('hud-starter', `<div class="rays"></div>${ICONS.starter}<span class="ot">Starter Pack</span>`, () => say('Starter Pack coming soon'))
-  const x2 = btn('hud-x2', `${ICONS.shield.replace('<svg', '<svg class="shield"')}<div class="t1 ot">x2 Speed</div><div class="t2 ot">Only 2 <i></i></div>`, () => say('x2 Speed coming soon'))
-  const boost = el('div', 'hud-boost', `${ICONS.boost}<span class="x ot">x2</span><div class="tm ot"></div>`)
-  const boostEl = boost.querySelector('.tm')
-  const timers = el('div', 'hud-timers')
-  const eventRow = el('div', 'row', `${ICONS.pumpkin}<span class="ot"></span>`)
-  const raceRow = el('div', 'row', `${ICONS.flag}<span class="ot"></span>`)
-  timers.append(eventRow, raceRow)
-  const eventEl = eventRow.querySelector('span')
-  const raceEl = raceRow.querySelector('span')
 
   // Ride My Bike: only out in the lane, past the SAFE ZONE line.
   const ride = el('div', 'hud-ride')
   const rideBtn = btn('hud-ride-go', '<span class="ot">Ride My Bike</span>', () => {
+    if (player.holding) return say('Place or sell your bike first')
     player.riding = !player.riding
     rideLabel.textContent = player.riding ? 'Get Off Bike' : 'Ride My Bike'
   })
   const rideLabel = rideBtn.querySelector('span')
-  ride.append(rideBtn, btn('hud-ride-gear', ICONS.gear, () => say('Bike settings coming soon')))
+  ride.append(rideBtn)
 
-  // Announcement banner ("A Secret Phantom GT Just Spawned in Angel Biome!").
+  // Announcement banner (shows nothing while ANNOUNCE.messages is empty).
   const banner = el('div', 'hud-announce ot')
   let nextAnnounce = ANNOUNCE.first
   let announceLeft = 0
@@ -156,7 +155,11 @@ export function createHud() {
   const pill = el('div', 'hud-zonepill ot')
   let cardTimer = 0
 
-  root.append(left, money, hotbar, ride, topRight, starter, x2, boost, timers, banner, pill, card, toast)
+  // "You earn $34.6K/12h Offline!" across the top while you stand on your plot (base.js).
+  const offline = el('div', 'hud-offline ot', 'You earn <span class="g"></span>/12h Offline!')
+  const offlineAmt = offline.querySelector('.g')
+
+  root.append(left, money, hotbar, ride, topRight, banner, pill, card, offline, toast)
   document.body.appendChild(root)
 
   // Keep the left column under Boxity's toolbar + chat in the top-left corner.
@@ -178,14 +181,136 @@ export function createHud() {
 
   // --- State ---
   let cash = HUD_START.cash
-  let boostLeft = TIMERS.boost
+  let income = HUD_START.income // $/s into your cash: the treadmill + every bike in your base
   let shownCash = ''
   let tick = 1 // draw on the first update
-  gemsEl.textContent = HUD_START.gems
+  let speed = HUD_START.speed
+  gemsEl.textContent = shortNumber(speed)
+  const bump = (node) => {
+    node.classList.remove('bump')
+    void node.offsetWidth // restart the animation
+    node.classList.add('bump')
+  }
+  // Little bike icons flying from a screen point into the speed counter.
+  const flyPool = []
+  const fly = (sx, sy, delay = 0) => {
+    let f = flyPool.find((n) => !n.isConnected)
+    if (!f) flyPool.push((f = el('div', 'hud-fly', ICONS.bikeGem)))
+    const to = speedIco.getBoundingClientRect()
+    f.style.left = `${sx}px`
+    f.style.top = `${sy}px`
+    f.style.setProperty('--dx', `${to.left + to.width / 2 - sx}px`)
+    f.style.setProperty('--dy', `${to.top + to.height / 2 - sy}px`)
+    f.style.animationDelay = `${delay}s`
+    root.appendChild(f)
+    setTimeout(() => f.remove(), (delay + 0.7) * 1000)
+  }
 
   let rideShown = null
   let clock = 0
   return {
+    say,
+    // For other UI (training.js): add a node to the HUD layer, or make a HUD button.
+    mount: (node) => root.appendChild(node),
+    onDaily: (fn) => (dailyFn = fn), // what the Daily Rewards button opens
+    onIndex: (fn) => (indexFn = fn), // what the Index button opens
+    button: btn,
+    get speed() {
+      return speed
+    },
+    // Adds speed; `from` = screen point the icons fly in from, `icons` how many.
+    addSpeed(n, from = null, icons = 1) {
+      speed += n
+      gemsEl.textContent = shortNumber(speed)
+      if (from) {
+        for (let i = 0; i < icons; i++) fly(from.x + (Math.random() - 0.5) * 40, from.y + (Math.random() - 0.5) * 30, i * 0.06)
+        setTimeout(() => bump(gemRow), 600 + (icons - 1) * 60)
+      } else bump(gemRow)
+    },
+    get cash() {
+      return cash
+    },
+    // For net.js: a loaded save over the HUD (cash, speed counter, income $/s).
+    restore({ cash: c, speed: s, income: i }) {
+      if (Number.isFinite(c)) cash = c
+      if (Number.isFinite(s)) {
+        speed = s
+        gemsEl.textContent = shortNumber(speed)
+      }
+      if (Number.isFinite(i)) income = i
+      shownCash = ''
+      tick = 1
+    },
+    // Pays `n` if there is enough; returns whether it did.
+    spend(n) {
+      if (cash < n) return false
+      cash -= n
+      shownCash = ''
+      tick = 1
+      bump(cashRow)
+      return true
+    },
+    // Adds `n` cash (sales, rewards).
+    earn(n) {
+      cash += n
+      shownCash = ''
+      tick = 1
+      bump(cashRow)
+    },
+    get income() {
+      return income
+    },
+    // A bike placed in your base adds its $/s.
+    addIncome(n) {
+      income += n
+    },
+    // The chase items: list = [{ id, count }] in slot order, `selected` = picked slot (-1: none).
+    setItems(list, selected) {
+      while (slots.length < list.length) {
+        const i = slots.length
+        const b = btn('hud-slot hud-item', '<span class="n ot"></span><span class="ico"></span><span class="cnt ot"></span><span class="nm ot"></span>', () => slotFn(i))
+        hotbar.insertBefore(b, heldSlot)
+        slots.push(b)
+      }
+      slots.forEach((b, i) => {
+        const it = list[i]
+        b.style.display = it ? '' : 'none'
+        if (!it) return
+        if (b.dataset.id !== it.id) {
+          b.dataset.id = it.id
+          b.querySelector('.ico').innerHTML = ITEM_ICONS[it.id]
+          b.querySelector('.nm').textContent = ITEMS.kinds[it.id].name
+        }
+        b.querySelector('.n').textContent = i + 1
+        b.querySelector('.cnt').textContent = it.count > 1 ? `x${it.count}` : ''
+        b.classList.toggle('sel', i === selected)
+      })
+      itemCount = list.length
+      heldSlot.querySelector('.n').textContent = itemCount + 1
+    },
+    // Pops an item slot (a pickup landed in it).
+    bumpItem(i) {
+      if (slots[i]) bump(slots[i])
+    },
+    onItemSlot: (fn) => (slotFn = fn),
+    onItemUse: (fn) => (useFn = fn),
+    // The USE hint over the hotbar: its text, or null to hide it.
+    useHint(text) {
+      if (text && use.textContent !== text) use.textContent = text
+      use.classList.toggle('show', !!text)
+    },
+    // The bike in your hands (after the item slots): its name and SVG art, or null when it is gone.
+    setHeld(name, art = '') {
+      heldSlot.style.display = name ? '' : 'none'
+      if (!name) return
+      heldSlot.querySelector('.art').innerHTML = art
+      heldSlot.querySelector('.nm').textContent = name
+    },
+    // The offline-earnings banner: the amount text, or null to hide it.
+    offline(amount) {
+      if (amount != null && offlineAmt.textContent !== amount) offlineAmt.textContent = amount
+      offline.classList.toggle('show', amount != null)
+    },
     // A zone of the lane: { k, name, rec, guard, color }.
     enterZone(z) {
       card.innerHTML = ''
@@ -210,7 +335,7 @@ export function createHud() {
     },
     update(dt) {
       clock += dt
-      if (clock >= nextAnnounce) {
+      if (ANNOUNCE.messages.length && clock >= nextAnnounce) {
         nextAnnounce = clock + ANNOUNCE.every
         announceLeft = ANNOUNCE.show
         const m = ANNOUNCE.messages[announceK++ % ANNOUNCE.messages.length]
@@ -234,8 +359,7 @@ export function createHud() {
         rideShown = outside
         ride.classList.toggle('show', outside)
       }
-      boostLeft = Math.max(0, boostLeft - dt)
-      cash += HUD_START.income * dt
+      cash += income * dt
       tick += dt
       if (tick < 0.2) return // the DOM only needs a few updates a second
       tick = 0
@@ -244,13 +368,6 @@ export function createHud() {
         shownCash = c
         cashEl.textContent = c
       }
-      boost.style.display = boostLeft > 0 ? '' : 'none'
-      boostEl.textContent = `${Math.floor(boostLeft / 60)}:${String(Math.floor(boostLeft % 60)).padStart(2, '0')}`
-      const e = eventStatus()
-      eventEl.textContent = `${e.open ? 'Closes' : 'Event'} in ${mmss(e.left)}`
-      const r = raceStatus()
-      raceEl.textContent = r.now ? 'Race is NOW!' : `Race in ${mmss(r.left)}`
-      raceEl.classList.toggle('now', r.now)
     },
   }
 }

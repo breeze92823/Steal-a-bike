@@ -15,6 +15,10 @@ export function setFxOwner(group) {
 export function onFrame(fn) {
   frameFns.push(owner ? { fn, owner } : { fn, owner: null })
 }
+// Runs every frame whatever zone is being built (shared materials, the chase).
+export function onGlobalFrame(fn) {
+  frameFns.push({ fn, owner: null })
+}
 export function updateFx(dt, t) {
   for (const f of frameFns) if (!f.owner || f.owner.visible) f.fn(dt, t)
 }
@@ -146,8 +150,9 @@ export function zzz(parent, x, y, z, phase = 0) {
   }
   let next = phase % every
   let k = 0
+  let active = true
   onFrame((dt, t) => {
-    if (t >= next) {
+    if (active && t >= next) {
       next = t + every
       const s = pool[k++ % pool.length]
       s.userData.age = 0
@@ -169,6 +174,8 @@ export function zzz(parent, x, y, z, phase = 0) {
       s.material.opacity = f < 0.12 ? f / 0.12 : 1 - Math.max(0, (f - 0.7) / 0.3)
     }
   })
+  // set(false) stops new Zs (the guard woke up); the ones in the air finish.
+  return { set: (on) => (active = on) }
 }
 
 // Specks of light hanging in the air over a box (x0..x1, y0..y1, z0..z1):

@@ -1,6 +1,7 @@
 import { BoxGeometry, CylinderGeometry, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, TorusGeometry } from 'three'
 import { neon, put } from './propkit.js'
 import { canvasTexture, motorbike, plain, sbox, tube } from './kit.js'
+import { bake } from './bake.js'
 
 // The guards' rides in the north lane and the people asleep on them: police
 // car, SWAT van, police motorbike, scooters, the sleeping officer, and the
@@ -103,8 +104,8 @@ export function policeMoto() {
   return g
 }
 
-// Vespa-style scooter.
-export function scooter(body = '#86e3d6') {
+// Vespa-style scooter; `box` adds a top box on a rack behind the seat (courier), `crate` a wooden crate.
+export function scooter(body = '#86e3d6', { box = null, crate = false } = {}) {
   const g = new Group()
   const bm = new MeshStandardMaterial({ color: body, roughness: 0.3, metalness: 0.1 })
   for (const x of [-0.52, 0.52]) {
@@ -121,6 +122,20 @@ export function scooter(body = '#86e3d6') {
   tube(g, [0.5, 1.05, 0], [0.56, 1.22, 0], 0.035, plain('#c9d0da', { metalness: 0.5 }))
   put(g, new BoxGeometry(0.16, 0.12, 0.56), bm, 0.56, 1.25, 0) // handlebar
   put(g, new BoxGeometry(0.05, 0.1, 0.12), neon('#ffffff', 2.2), 0.65, 1.25, 0, false)
+  put(g, new BoxGeometry(0.04, 0.06, 0.16), neon('#ff1a2a', 1.8), -0.7, 0.66, 0, false) // tail lamp
+  for (const s of [-1, 1]) put(g, new BoxGeometry(0.12, 0.05, 0.08), plain('#c9d0da', { metalness: 0.5 }), 0.62, 1.32, s * 0.2) // mirrors
+  if (box || crate) put(g, new BoxGeometry(0.34, 0.04, 0.34), plain('#2a2d36'), -0.62, 0.92, 0) // rack
+  if (box) {
+    const bx = plain(box, { roughness: 0.5 })
+    put(g, new BoxGeometry(0.44, 0.36, 0.44), bx, -0.64, 1.12, 0)
+    put(g, new BoxGeometry(0.46, 0.06, 0.46), plain('#f4f2ea', { roughness: 0.5 }), -0.64, 1.31, 0) // lid
+    put(g, new BoxGeometry(0.02, 0.1, 0.2), neon('#ff1a2a', 1.6), -0.87, 1.12, 0, false)
+  }
+  if (crate) {
+    const wood = plain('#8a5a2c', { roughness: 0.85 })
+    put(g, new BoxGeometry(0.42, 0.28, 0.42), wood, -0.62, 1.08, 0)
+    for (const y of [0.98, 1.16]) put(g, new BoxGeometry(0.44, 0.03, 0.44), plain('#6a4220', { roughness: 0.85 }), -0.62, y, 0)
+  }
   return g
 }
 
@@ -156,7 +171,21 @@ export function officer() {
   sbox(head, 0.22, 0.05, 0.5, '#111a44', 0.33, 0.44, 0, { studs: false }) // brim
   put(head, new BoxGeometry(0.03, 0.1, 0.1), plain('#f2f2f2'), 0.275, 0.56, 0, false)
   g.add(head)
+  g.userData.head = head
   return g
+}
+
+// The officer baked to two meshes groups: body, and the head (userData.head)
+// on its neck pivot so it can lift when he wakes (rotation.z 0 = awake).
+export function bakedOfficer() {
+  const o = officer()
+  const head = o.userData.head
+  o.remove(head)
+  const body = bake(o, true)
+  const h = bake(head, true)
+  body.add(h)
+  body.userData.head = h
+  return body
 }
 
 // Dashed white parking bay, w along X by d along Z, flat on the ground.

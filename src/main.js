@@ -1,9 +1,9 @@
 import { ACESFilmicToneMapping, Clock, Group, PCFSoftShadowMap, PerspectiveCamera, Scene, SRGBColorSpace, WebGLRenderer } from 'three'
 import { CAMERA, graphicsPreset, RENDER, RIDE } from './config.js'
 import * as bloxity from './bloxity.js'
-import { install as installInput, onKey } from './input.js'
+import { install as installInput, onKey, releaseInput } from './input.js'
 import { installTouch } from './touch.js'
-import { createPlayerBody, interpolate as interpolatePlayer, player, resetPlayer, respawn } from './player.js'
+import { createPlayerBody, interpolate as interpolatePlayer, player, resetPlayer, respawn, rideTop } from './player.js'
 import { setCameraSensitivity, syncYawToPlayer, update as updateCamera } from './camera.js'
 import { onModeChanged, toggleMode } from './modes.js'
 import { bodyCount, initPhysics, stepPhysics } from './physics.js'
@@ -14,9 +14,19 @@ import { buildMarket } from './market.js'
 import { buildValley } from './valley.js'
 import { setParticleScale, updateFx } from './fx.js'
 import { createLane } from './lane.js'
-import { installAudio, updateAudio } from './audio.js'
+import { installAudio, setAdBreak, updateAudio } from './audio.js'
 import { createHud } from './hud.js'
-import { createNameTag } from './nametag.js'
+import { createShops } from './shops.js'
+import { createTraining } from './training.js'
+import { createChaseHud } from './chasehud.js'
+import { createHeist } from './heist.js'
+import { createBase } from './base.js'
+import { initNet, sendEmote, sendLoadout, sendPose, syncAvatar } from './net.js'
+import { createBubble } from './bubble.js'
+import { playEmote } from './avatar/emotes.js'
+import { createRemotePlayers } from './remotePlayers.js'
+import { equippedTrail } from './trailshop.js'
+import { createItems } from './items.js'
 import { bicycle } from './kit.js'
 import { createPostFx } from './postfx.js'
 import { setNeonBloom } from './propkit.js'
@@ -87,11 +97,13 @@ const lobby = buildLobby(scene) // ground, road, plots, garages, walls
 const market = buildMarket(scene) // shops north of the road
 const junction = buildValley(scene) // the road to the safe zone line
 const hud = createHud()
+const shops = createShops({ hud, camera }) // Trail Shop, Sell Bikes, Halloween Shop (hold E at the stalls), Daily Rewards, Bike Index
 createPlayerBody()
 syncYawToPlayer()
 installAudio()
 // The zones north of the safe zone, built and shown as you approach them.
 const lane = createLane(scene, { lighting, hud, hub: [...lobby.roots, market, junction] })
+const training = createTraining({ scene, hud, camera, mill: lobby.treadmill })
 lane.update(player.position, true)
 
 // --- Player avatar ----------------------------------------------------------
@@ -100,28 +112,55 @@ lane.update(player.position, true)
 // rebuilds on customizer edits and sign-in/out.
 const playerGroup = new Group()
 scene.add(playerGroup)
+// Avatar + bike sit in `ride`, which pivots about the back axle for wheelies;
+// `fall` rolls the lot over about the feet when the police knock you down.
+const fall = new Group()
+const axle = new Group()
+const ride = new Group()
+axle.position.set(0, RIDE.axleY * RIDE.bikeScale, -RIDE.axleZ * RIDE.bikeScale)
+ride.position.set(0, -RIDE.axleY * RIDE.bikeScale, RIDE.axleZ * RIDE.bikeScale)
+axle.add(ride)
+fall.add(axle)
+playerGroup.add(fall)
 let avatar = null
 let animator = null
+const bubble = createBubble(playerGroup, 3.45) // your Bloxity chat line, over your head
 let generation = 0
 let avatarReady = false
 
 function setAvatar(next) {
-  if (avatar) playerGroup.remove(avatar)
+  if (avatar) ride.remove(avatar)
   disposeAnimator(animator)
   avatar = next
-  playerGroup.add(avatar)
+  ride.add(avatar)
   animator = makeAnimator(avatar)
 }
 
 setAvatar(buildDefaultCharacter()) // visible immediately; replaced once the rig loads
-const nameTag = createNameTag(playerGroup)
 
-// Your bike, under the avatar while you ride it (Ride My Bike); its wheels roll with your speed.
+// Your bike, under the avatar while you ride it (Ride My Bike) or train on your treadmill; its wheels roll with your speed.
 const myBike = bicycle()
 myBike.rotation.y = -Math.PI / 2 // the kit's +X front to the avatar's forward (+Z)
 myBike.scale.setScalar(RIDE.bikeScale)
 myBike.visible = false
-playerGroup.add(myBike)
+ride.add(myBike)
+
+// The bike you got away with, walked beside you (follows your position and facing,
+// not the wheelie/knockdown pivots), and your base where you park it.
+const holder = new Group()
+playerGroup.add(holder)
+const base = createBase({ scene, hud, camera, holder, plotX: lobby.plotX })
+
+// The game server (saves, the MOST CASH board, other players). Every saved window has registered
+// itself by now; the server's save is applied once the connection answers.
+const remotes = createRemotePlayers(scene)
+initNet({ hud })
+
+// Stealing bikes from the guard posts and the chase home (the guards and bikes
+// registered themselves as their zones were built).
+const heist = createHeist({ scene, camera, hud: createChaseHud(hud), lane, rig: ride, onEscape: (b, model) => base.hold(b.name, model, b.value) })
+// The chase items on the hotbar (bat, barbed wire, oil, smoke, nitro) and the crates that drop during a chase.
+const items = createItems({ scene, hud, heist, lane, rig: ride, canvas: renderer.domElement })
 
 async function loadAvatar() {
   // The SDK fires twice per change (optimistic + confirmed); only the newest load may land.
@@ -134,6 +173,7 @@ async function loadAvatar() {
     if (mine !== generation) return
     applyProportions(group, bloxity.authState.user ? bloxity.getProportions() : null)
     setAvatar(group)
+    syncAvatar() // the others see the new look
   } finally {
     if (mine === generation) avatarReady = true
   }
@@ -145,12 +185,31 @@ bloxity.subscribeAuth((s) => {
   if (now !== signedIn) {
     signedIn = now
     loadAvatar() // also runs once at start to swap in the real rig
-    nameTag.refresh()
   }
 })
 bloxity.onAvatarChanged(loadAvatar)
-bloxity.onProportionsChanged(() => applyProportions(avatar, bloxity.getProportions()))
+bloxity.onProportionsChanged(() => {
+  applyProportions(avatar, bloxity.getProportions())
+  syncAvatar()
+})
 bloxity.onRespawnRequest(respawn)
+bloxity.onChat((uid, text, seconds, local) => {
+  if (local) bubble.say(text, seconds)
+  else remotes.say(uid, text, seconds)
+})
+bloxity.onEmote((id) => {
+  playEmote(() => animator, id)
+  sendEmote(id)
+})
+bloxity.onPointerLock((locked) => locked || releaseInput())
+
+// An ad break freezes the world and silences it. The room stays joined.
+let adBreak = false
+bloxity.onAdBreak((on) => {
+  adBreak = on
+  setAdBreak(on)
+  releaseInput()
+})
 
 // --- Modes + keys --------------------------------------------------------------
 onModeChanged((mode) => {
@@ -166,27 +225,49 @@ const clock = new Clock()
 let shownLoading = true
 let readySince = 0
 
-renderer.setAnimationLoop(() => {
+const round2 = (n) => Math.round(n * 100) / 100
+
+function frame() {
   const dt = Math.min(clock.getDelta(), 0.1) // clamp huge frames (tab switch, breakpoint)
+  if (adBreak) return
   const elapsed = clock.elapsedTime
 
+  player.counter = hud.speed
+  player.topSpeed = rideTop(hud.speed) * items.boost // treadmill training makes your bike faster (Nitro, for a moment)
   stepPhysics(dt) // runs the player controller + world at the fixed rate, interpolates bodies
   interpolatePlayer()
 
   const p = player.renderPosition
   playerGroup.position.set(p.x, p.y, p.z)
   playerGroup.rotation.y = player.facing
-  const speed = Math.hypot(player.velocity.x, player.velocity.z)
-  myBike.visible = player.riding
-  if (player.riding) for (const w of myBike.userData.wheels) w.rotation.z -= (speed * dt) / (0.42 * RIDE.bikeScale)
+  training.update(dt)
+  heist.update(dt, elapsed)
+  items.update(dt, elapsed)
+  base.update(dt)
+  const train = training.state
+  const onBike = player.riding || train.active
+  const speed = train.active ? train.pedal : Math.hypot(player.velocity.x, player.velocity.z)
+  myBike.visible = onBike && !heist.carrying // a stolen bike shows its own model
+  const wheels = heist.carrying ? heist.rideModel?.userData.wheels : myBike.userData.wheels
+  if (onBike && wheels) for (const w of wheels) w.rotation.z -= (speed * dt) / (0.42 * RIDE.bikeScale)
+  axle.rotation.x = -(train.wheelie + heist.pitch) // front wheel up
+  fall.rotation.z = heist.roll - player.bike.lean // knocked over, or leaning into a turn
+  fall.position.y = heist.lift
   animator?.update(dt, {
     grounded: player.grounded,
-    speed,
+    speed: heist.knocked ? 0 : speed,
     verticalVelocity: player.velocity.y,
     turn: 0,
-    riding: player.riding,
+    riding: onBike,
     seatLift: RIDE.seatLift,
+    holding: !!player.holding,
   })
+
+  // Others see where you are, what you ride and your trail (net.js throttles and skips duplicates).
+  sendPose({ x: round2(p.x), y: round2(p.y), z: round2(p.z), yaw: round2(player.facing), speed: round2(speed), state: onBike ? 1 : player.holding ? 2 : 0 })
+  sendLoadout({ trail: equippedTrail()?.id ?? '', bike: player.holding ?? '' })
+  remotes.update(dt, p)
+  bubble.update(dt)
 
   updateCamera(camera, dt)
   world.update(dt, elapsed)
@@ -194,6 +275,7 @@ renderer.setAnimationLoop(() => {
   updateFx(dt, elapsed)
   updateAudio(dt, player.renderPosition)
   hud.update(dt)
+  shops.update(dt)
   lighting.update(dt, playerGroup.position)
   postfx.render()
 
@@ -205,7 +287,8 @@ renderer.setAnimationLoop(() => {
       bloxity.notifyFirstFrame()
     }
   }
-})
+}
+renderer.setAnimationLoop(frame)
 
 window.addEventListener('beforeunload', bloxity.teardown)
 
@@ -215,5 +298,5 @@ if (import.meta.env.DEV) {
     resetPlayer({ x, y, z }, facing)
     syncYawToPlayer()
   }
-  window.__game = { player, scene, renderer, camera, postfx, bodies: bodyCount, toggleMode, teleport, lane }
+  window.__game = { player, scene, renderer, camera, postfx, bodies: bodyCount, toggleMode, teleport, lane, training, hud, heist, base, items, frame } // frame(): one loop step by hand (a hidden tab draws none)
 }

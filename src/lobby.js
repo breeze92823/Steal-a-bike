@@ -3,7 +3,7 @@ import { LAYOUT, PALETTE } from './config.js'
 import { bake, bakeStatic } from './bake.js'
 import { label, neon, put, solidBox } from './propkit.js'
 import { mulberry32 } from './textures.js'
-import { bikeTag, bicycle, canvasTexture, exclamation, ghost, meterBox, motorbike, outlinedText, plain, pumpkin, sbox, studMat, tube, voxelTree } from './kit.js'
+import { bikeTag, bicycle, canvasTexture, exclamation, ghost, liveLabel, meterBox, motorbike, outlinedText, plain, pumpkin, sbox, studMat, tube, voxelTree } from './kit.js'
 import { bob, onFrame, risingText, sparkles } from './fx.js'
 
 // The plaza: lego ground, the east-west road with the junction stub north, the
@@ -61,7 +61,8 @@ function beltTexture(bg, fg) {
 }
 
 // A treadmill whose console end is at z0 and belt runs south (+Z). `neonFrame` makes
-// the glowing upgraded kind the neighbours have.
+// the glowing upgraded kind the neighbours have. `g.userData.beltSpeed` (repeats/s)
+// can be changed later (training speeds yours up).
 function treadmill(root, x, z0, { frame = P.treadFrame, neonFrame = null } = {}) {
   const g = new Group()
   const len = 4.6
@@ -104,19 +105,23 @@ function treadmill(root, x, z0, { frame = P.treadFrame, neonFrame = null } = {})
   }
   g.position.set(x, 0, zc)
   root.add(g)
+  g.userData.beltSpeed = neonFrame ? 1.6 : 0.9
+  g.userData.belt = beltMesh // its material (baked meshes keep sharing it) brightens while you train
   onFrame((dt) => {
-    belt.offset.y -= dt * (neonFrame ? 1.6 : 0.9)
+    belt.offset.y -= dt * g.userData.beltSpeed
   })
   solidBox(1.3, 0.16, len / 2, x, 0.16, zc)
   return g
 }
 
 // Upgrade sign: a brick block with a slanted panel on top. `face` = yaw the panel faces.
+// Returns `setLines(lines)` to repaint the panel (prices after an upgrade).
 function upgradeSign(root, x, z, face, lines) {
   const g = new Group()
   sbox(g, 2.6, 1.15, 1.1, P.brick, 0, 0, 0)
   sbox(g, 1.0, 0.75, 1.0, P.brick, 1.75, 0, 0.1) // the lower block beside it (L shape)
-  const tex = canvasTexture(512, 256, (ctx, w, h) => {
+  const paint = (ctx, w, h) => {
+    ctx.clearRect(0, 0, w, h)
     ctx.fillStyle = '#8f5242'
     ctx.fillRect(0, 0, w, h)
     outlinedText(ctx, lines[0], w / 2, 46, { size: 54, width: 9 })
@@ -133,7 +138,8 @@ function upgradeSign(root, x, z, face, lines) {
       ctx.strokeRect(px, 150, pw, 76)
       outlinedText(ctx, text, px + pw / 2, 190, { size: 52, width: 9 })
     })
-  })
+  }
+  const tex = canvasTexture(512, 256, paint)
   const panel = put(g, new PlaneGeometry(2.5, 1.25), new MeshStandardMaterial({ map: tex, roughness: 0.6 }), 0, 1.35, 0.15, false)
   panel.rotation.x = -0.9
   g.position.set(x, 0, z)
@@ -144,7 +150,12 @@ function upgradeSign(root, x, z, face, lines) {
   mark.position.set(x, 2.3, z)
   root.add(mark)
   bob(mark, 0.15, 2.4, x)
-  return g
+  const setLines = (next) => {
+    lines = next
+    paint(tex.image.getContext('2d'), tex.image.width, tex.image.height)
+    tex.needsUpdate = true
+  }
+  return { group: g, setLines }
 }
 
 // A blocky rider sitting on a bike (the neighbours on their treadmills).
@@ -179,14 +190,14 @@ function plotGeometry(root, cx) {
   })
   solidBox(plotWidth() / 2, 0.12, depth / 2, cx, 0.12, z0 + depth / 2)
 }
-const plotWidth = () => L.plotColumns.reduce((a, b) => a + b, 0)
+export const plotWidth = () => L.plotColumns.reduce((a, b) => a + b, 0)
 // x of a column centre in a plot centred on cx.
-function columnX(cx, c) {
+export function columnX(cx, c) {
   let x = cx - plotWidth() / 2
   for (let i = 0; i < c; i++) x += L.plotColumns[i]
   return x + L.plotColumns[c] / 2
 }
-const rowZ = (r) => L.plotZ + r * L.plotRowDepth + L.plotRowDepth / 2
+export const rowZ = (r) => L.plotZ + r * L.plotRowDepth + L.plotRowDepth / 2
 
 const GARAGE_BIKES = [
   ['Limited', 'Hellfire Dragster', '$5M/s', '#ff6a1a', '#222'],
@@ -424,12 +435,14 @@ export function buildLobby(scene) {
   // Your plot: treadmill, upgrade signs, your first bike.
   const me = L.plotCenters[L.plotOwners.indexOf('me')]
   const tx = columnX(me, 2)
-  treadmill(root, tx, L.treadmillZ)
-  const tm = label('+2/s', 1.05, { color: '#ffffff', outline: '#1b2f6a' })
-  tm.position.set(tx + 0.4, 2.7, L.treadmillZ + 0.4)
-  sprites.add(tm)
-  bob(tm, 0.08, 2)
-  upgradeSign(root, tx + 3.1, L.treadmillZ + 2.0, -Math.PI / 2 + 0.3, ['Upgrade Treadmill', 'Lv 1 > 2', '$600', '◎ 11'])
+  const mill = treadmill(root, tx, L.treadmillZ)
+  const rate = liveLabel('+1/s', 1.05, { color: '#ffffff', outline: '#1b2f6a' })
+  rate.sprite.position.set(tx - 1.9, 2.4, L.treadmillZ + 0.6)
+  sprites.add(rate.sprite)
+  bob(rate.sprite, 0.08, 2)
+  const signX = tx + 3.1
+  const signZ = L.treadmillZ + 2.0
+  const sign = upgradeSign(root, signX, signZ, -Math.PI / 2 + 0.3, ['Upgrade Treadmill', 'Lv 1 > 2', '$600', '◎ 11'])
   upgradeSign(root, columnX(me, 3) - 0.6, L.plotZ - 1.3, Math.PI - 0.2, ['Upgrade Plot', '6 > 8 Bikes', '$1K'])
   const bx = columnX(me, 3)
   const bz = rowZ(0) + 0.5
@@ -482,5 +495,11 @@ export function buildLobby(scene) {
     root.add(p)
   }
   bakeStatic(root)
-  return { plotX: me, roots: [root, sprites] }
+  return {
+    plotX: me,
+    roots: [root, sprites],
+    // Your treadmill for training.js: belt centre x, console end z0, length, the
+    // group (belt speed), the floating rate label and the upgrade sign.
+    treadmill: { x: tx, z0: L.treadmillZ, len: 4.6, group: mill, rate, sign: { x: signX, z: signZ, setLines: sign.setLines }, sprites },
+  }
 }

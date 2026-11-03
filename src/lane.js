@@ -1,5 +1,5 @@
 import { Group } from 'three'
-import { COARSE_POINTER, GUARD_TIERS, LANE, LAYOUT, MOODS, ZONE_GEN, ZONE_THEMES } from './config.js'
+import { COARSE_POINTER, LANE, LAYOUT, MOODS, ZONE_GEN, ZONE_THEMES } from './config.js'
 import { bakeStatic } from './bake.js'
 import { setFxOwner } from './fx.js'
 import { onThunder, setBed } from './audio.js'
@@ -7,10 +7,12 @@ import { buildZone1 } from './zone1.js'
 import { buildZone2 } from './zone2.js'
 import { buildZone3 } from './zone3.js'
 import { buildZone4 } from './zone4.js'
-import { buildThemedZone, guardTier, recommended, shortNumber } from './zones.js'
+import { buildThemedZone, shortNumber } from './zones.js'
 
-// The north lane as a list of zones: 1..4 hand-built from the reference
-// screenshots, 5..44 generated from ZONE_THEMES. Each zone builds into its
+// The north lane as a list of zones, one per Bike Index world: 1..4 (Plain
+// World, Lake, Desert, Snow) hand-built from the reference screenshots, 5..12
+// generated from ZONE_THEMES. A zone's `dark` flag (Magma, Cosmic, Aurora
+// Nexus) has its guard drive with headlights (heist.js). Each zone builds into its
 // own group the first time you come within range (one per frame, so walking
 // never stalls for long) and is only shown near you; the hub (lobby, shops,
 // junction) hides once you are far up the lane. Entering a zone sets its
@@ -23,10 +25,10 @@ const HUB_HIDE_Z = -320 // past here the plaza is out of sight
 export function createLane(scene, { lighting, hud, hub }) {
   const zones = []
   const fixed = [
-    { name: 'Grass Fields', end: LANE.zone1.endZ, y: LANE.zone1.y, build: buildZone1, sound: 'meadow', rec: '0', guard: 'Police Bike' },
-    { name: 'Green Plateau', end: LANE.zone2.endZ, y: LANE.zone2.y, build: buildZone2, sound: 'meadow', rec: LANE.zone2.recommended, guard: 'Police Car' },
-    { name: 'Sandy Gulch', end: LANE.zone3.endZ, y: LANE.zone3.y, build: buildZone3, sound: 'desert', rec: LANE.zone3.recommended, guard: 'SWAT Van' },
-    { name: 'Frozen Falls', end: LANE.zone4.endZ - LANE.gate.depth, y: LANE.zone4.y, build: buildZone4, sound: 'blizzard', rec: LANE.zone4.recommended, guard: 'Armoured Truck', mood: 'ice' },
+    { name: 'Plain World', end: LANE.zone1.endZ, y: LANE.zone1.y, build: buildZone1, sound: 'meadow', rec: '0', guard: 'Police Bike' },
+    { name: 'Lake', end: LANE.zone2.endZ, y: LANE.zone2.y, build: buildZone2, sound: 'meadow', rec: LANE.zone2.recommended, guard: 'Police Car' },
+    { name: 'Desert', end: LANE.zone3.endZ, y: LANE.zone3.y, build: buildZone3, sound: 'desert', rec: LANE.zone3.recommended, guard: 'S.W.A.T. Truck' },
+    { name: 'Snow', end: LANE.zone4.endZ - LANE.gate.depth, y: LANE.zone4.y, build: buildZone4, sound: 'blizzard', rec: LANE.zone4.recommended, guard: 'Riot Unit', mood: 'ice' },
   ]
   let z0 = LAYOUT.safeZoneZ
   fixed.forEach((f, i) => {
@@ -48,9 +50,10 @@ export function createLane(scene, { lighting, hud, hub }) {
       build: (root) => buildThemedZone(root, k, theme, from, z1, y, { last }),
       sound: theme.sound,
       mood: theme.mood ? MOODS[theme.mood] : null,
-      rec: shortNumber(recommended(k)),
-      guard: GUARD_TIERS[guardTier(k)].name,
+      rec: shortNumber(theme.rec),
+      guard: theme.guard.name,
       color: theme.gate,
+      dark: !!theme.dark,
     })
     z0 = z1
   })

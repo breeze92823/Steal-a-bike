@@ -263,12 +263,105 @@
   width: calc(var(--u) * 66);
   height: calc(var(--u) * 66);
 }
+.hud-slot .art svg {
+  width: calc(var(--u) * 78);
+  height: calc(var(--u) * 56);
+  margin-top: calc(var(--u) * -8);
+}
+
+/* --- "You earn $X/12h Offline!" (top centre, on your plot) --------------------------- */
+.hud-offline {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--safe-t, 0px) + var(--u) * 70);
+  max-width: calc(100vw - 32px);
+  transform: translate(-50%, -50%) scale(0.7);
+  font-size: calc(var(--u) * 58);
+  font-weight: 700;
+  color: #fff;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s, transform 0.3s cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+.hud-offline.show {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+.hud-offline .g {
+  color: #5dff4a;
+}
+.hud .hud-offline {
+  white-space: normal;
+  text-align: center;
+}
+/* Phones: under Boxity's toolbar, readable size. */
+@media (max-width: 520px) {
+  .hud-offline {
+    font-size: 19px;
+    top: calc(var(--reserved-top, 56px) + 22px);
+  }
+}
+@media (max-height: 500px) and (orientation: landscape) {
+  .hud-offline {
+    font-size: 18px;
+    top: calc(var(--safe-t) + 22px);
+  }
+}
+
 .hud-slot .cnt {
   position: absolute;
-  top: calc(var(--u) * 30);
-  font-size: calc(var(--u) * 40);
+  right: calc(var(--u) * 7);
+  top: calc(var(--u) * 2);
+  font-size: calc(var(--u) * 26);
   -webkit-text-stroke: calc(var(--u) * 5) #1a1230;
   paint-order: stroke fill;
+}
+.hud-slot .ico {
+  display: grid;
+  place-items: center;
+  margin-top: calc(var(--u) * -10);
+}
+.hud-slot .ico svg {
+  width: calc(var(--u) * 58);
+  height: calc(var(--u) * 58);
+}
+.hud-slot.bump {
+  animation: hud-slot-bump 0.35s ease-out;
+}
+@keyframes hud-slot-bump {
+  40% { transform: scale(1.18); border-color: #ffe066; }
+}
+/* "CLICK TO USE" over the hotbar while an item is picked in a chase (a tap button on touch). */
+.hud-use {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + var(--u) * 12);
+  transform: translateX(-50%);
+  display: none;
+  min-height: 44px;
+  padding: calc(var(--u) * 8) calc(var(--u) * 26);
+  border: calc(var(--u) * 4) solid #5a2200;
+  border-radius: calc(var(--u) * 40);
+  background: linear-gradient(#ffe33a, #ff8a12);
+  color: #fff;
+  font-size: max(calc(var(--u) * 28), 14px);
+  font-weight: 700;
+  white-space: nowrap;
+  -webkit-text-stroke: calc(var(--u) * 5) #5a2200;
+  paint-order: stroke fill;
+  pointer-events: auto;
+  touch-action: none;
+  cursor: pointer;
+  animation: hud-use-pulse 0.9s ease-in-out infinite;
+}
+.hud-use.show {
+  display: block;
+}
+.touch-ui .hud-use {
+  padding: 10px 24px;
+}
+@keyframes hud-use-pulse {
+  50% { transform: translateX(-50%) scale(1.06); }
 }
 
 /* --- Ride My Bike (bottom centre, above the hotbar; only past the SAFE ZONE) ---------- */
@@ -299,21 +392,6 @@
 }
 .hud-ride-go .ot {
   -webkit-text-stroke: calc(var(--u) * 6) #0f3a12;
-}
-.hud-ride-gear {
-  width: calc(var(--u) * 82);
-  height: calc(var(--u) * 82);
-  min-width: 44px;
-  min-height: 44px;
-  border: calc(var(--u) * 4) solid #3a4258;
-  border-radius: calc(var(--u) * 4);
-  background: linear-gradient(180deg, #8d97ab, #6a748a);
-  display: grid;
-  place-items: center;
-}
-.hud-ride-gear svg {
-  width: 72%;
-  height: 72%;
 }
 
 /* --- Right side -------------------------------------------------------------------------- */
@@ -592,6 +670,181 @@
 }
 .touch-ui .hud-ride {
   bottom: calc(var(--safe-b) + var(--thumb) + max(var(--u) * 112, 56px));
+}
+.touch-ui .hud-upgrade,
+.touch-ui .hud-trainhint {
+  bottom: calc(var(--safe-b) + var(--thumb) + max(var(--u) * 112, 56px));
+}
+
+/* --- Training (training.js) ----------------------------------------------------------------- */
+.hud-money .row {
+  transform-origin: left center;
+}
+.hud-money .row.bump {
+  animation: hud-bump 0.32s ease-out;
+}
+@keyframes hud-bump {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+/* A bike icon flying from your character into the speed counter. */
+.hud-fly {
+  position: absolute;
+  width: max(calc(var(--u) * 46), 24px);
+  height: max(calc(var(--u) * 36), 19px);
+  translate: -50% -50%;
+  pointer-events: none;
+  opacity: 0;
+  animation: hud-fly 0.62s cubic-bezier(0.5, 0, 0.9, 0.6) forwards;
+  filter: drop-shadow(0 0 6px #6fd6ff);
+  z-index: 5;
+}
+@keyframes hud-fly {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.6); }
+  15% { opacity: 1; transform: translate(calc(var(--dx) * 0.05), calc(var(--dy) * 0.05 - 30px)) scale(1.15); }
+  100% { opacity: 1; transform: translate(var(--dx), var(--dy)) scale(0.7); }
+}
+/* "x4 CLICK!" beside your character while you train (placed every frame). */
+.hud-x4 {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: max(calc(var(--u) * 100), 64px);
+  height: max(calc(var(--u) * 76), 50px);
+  padding: 0;
+  border: max(calc(var(--u) * 4), 3px) solid #3a2200;
+  border-radius: max(calc(var(--u) * 14), 9px);
+  background: linear-gradient(#ffd64a, #ff9f1a 60%, #ff8a00);
+  box-shadow: 0 max(calc(var(--u) * 4), 3px) 0 #8a4a00, inset 0 3px 0 #fff3a0;
+  display: none;
+  touch-action: none;
+  cursor: pointer;
+  translate: -50% -50%;
+  z-index: 4;
+}
+.hud-x4.show {
+  display: block;
+}
+.hud-x4 svg {
+  position: absolute;
+  left: 6%;
+  top: 6%;
+  width: 38%;
+  height: 38%;
+}
+.hud-x4 .x {
+  position: absolute;
+  right: 8%;
+  top: 0;
+  font-size: max(calc(var(--u) * 38), 24px);
+  line-height: 1.1;
+  color: #fff;
+}
+.hud-x4 .c {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 22%;
+  text-align: center;
+  font-size: max(calc(var(--u) * 17), 11px);
+  color: #fff;
+}
+.hud-x4 .bar {
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  bottom: 9%;
+  height: 10%;
+  border-radius: 99px;
+  background: #6b3a00;
+  overflow: hidden;
+}
+.hud-x4 .bar i {
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: #fff6c8;
+  transform-origin: left center;
+}
+.hud-x4.cool {
+  filter: saturate(0.55) brightness(0.88);
+}
+.hud-x4.ready {
+  animation: hud-x4ready 0.9s ease-in-out infinite;
+}
+.hud-x4.pop {
+  animation: hud-x4pop 0.22s ease-out;
+}
+@keyframes hud-x4ready {
+  0%, 100% { scale: 1; }
+  50% { scale: 1.08; }
+}
+@keyframes hud-x4pop {
+  0% { scale: 1; }
+  40% { scale: 0.8; }
+  100% { scale: 1; }
+}
+/* "Jump to get off" while training. */
+.hud-trainhint {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--safe-b) + var(--u) * 150);
+  transform: translateX(-50%);
+  font-size: max(calc(var(--u) * 26), 14px);
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.hud-trainhint.show {
+  opacity: 0.92;
+}
+/* Upgrade Treadmill button, shown by the sign. */
+.hud-upgrade {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--safe-b) + var(--u) * 150);
+  transform: translateX(-50%) scale(0.85);
+  display: flex;
+  align-items: center;
+  gap: calc(var(--u) * 14);
+  padding: calc(var(--u) * 10) calc(var(--u) * 24);
+  min-height: 44px;
+  border: max(calc(var(--u) * 4), 3px) solid #0d3a10;
+  border-radius: calc(var(--u) * 16);
+  background: linear-gradient(#7dff5a, #2fd14a);
+  box-shadow: 0 max(calc(var(--u) * 5), 3px) 0 #136a1e;
+  color: #fff;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s, transform 0.2s;
+  touch-action: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.hud-upgrade.show {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(-50%) scale(1);
+}
+.hud-upgrade .t,
+.hud-upgrade .p {
+  font-size: max(calc(var(--u) * 30), 16px);
+}
+.hud-upgrade .p {
+  background: rgba(13, 58, 16, 0.75);
+  border-radius: calc(var(--u) * 10);
+  padding: calc(var(--u) * 4) calc(var(--u) * 14);
+}
+.hud-upgrade.poor .p {
+  color: #ff8a8a;
+}
+.hud-upgrade.max {
+  background: linear-gradient(#ffe066, #f2a000);
+  border-color: #6b2a00;
+  box-shadow: 0 max(calc(var(--u) * 5), 3px) 0 #8a4a00;
 }
 @media (orientation: portrait) {
   .touch-ui .hud-money {

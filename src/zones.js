@@ -1,23 +1,23 @@
-import { AdditiveBlending, BoxGeometry, Color, DoubleSide, MeshBasicMaterial, PlaneGeometry, ShaderMaterial, TorusGeometry } from 'three'
-import { GUARD_TIERS, LAYOUT, ZONE_GEN } from './config.js'
+import { AdditiveBlending, BoxGeometry, Color, DoubleSide, Group, MeshBasicMaterial, PlaneGeometry, ShaderMaterial, TorusGeometry } from 'three'
+import { INDEX_WORLDS, LAYOUT } from './config.js'
 import { mulberry32 } from './textures.js'
 import { neon, put, solidBox } from './propkit.js'
-import { bicycle, bikeTag, canvasTexture, ghost, motorbike, outlinedText, plain, RARITY, sbox, shade } from './kit.js'
+import { bikeTag, canvasTexture, ghost, outlinedText, plain, RARITY, sbox, shade } from './kit.js'
 import { terraceWall } from './lobby.js'
-import { bob, motes, onFrame, sparkles, weather, zzz } from './fx.js'
-import { addSnore } from './audio.js'
-import { scooter } from './vehicles.js'
-import { guardVehicle } from './police.js'
+import { bob, motes, onFrame, sparkles, weather } from './fx.js'
+import { fleetVehicle } from './fleet.js'
+import { bikeModel } from './bikes3d.js'
+import { bikeValue, CATALOG } from './bikeart.js'
 import { DECOR } from './decor.js'
-import { floor, parked, patch, place, postSign, SOUTH } from './lanekit.js'
+import { floor, patch, place, postSign, sleepingGuard, SOUTH, stealBay } from './lanekit.js'
 
-// One generated zone of the north lane (zones 5..44) from its ZONE_THEMES
+// One generated world of the north lane (zones 5..12) from its ZONE_THEMES
 // entry: the floor (a step up from the last zone), themed cliffs, an entrance
-// gate with the zone's name in neon, the theme's set piece and decor, weather
-// and motes, and the guard posts: police vehicles that get stronger every
-// five zones (GUARD_TIERS, five marks each), parked rarer bikes with their
-// name tags and glowing auras, and a "Recommended" sign. lane.js decides
-// when each zone is built and shown.
+// gate with the world's name in neon, the theme's set piece and decor, weather
+// and motes, and its guard post: the world's police vehicle (theme.guard,
+// fleet.js) asleep by three of that world's Bike Index bikes (their rarity
+// tags, sparkles and auras) and the "Recommended" sign. lane.js decides when
+// each zone is built and shown.
 const hw = LAYOUT.valley.halfWidth
 
 // --- Numbers ----------------------------------------------------------------------------------
@@ -31,13 +31,19 @@ export function shortNumber(n) {
   }
   return `${Math.floor(n)}`
 }
-// What zone k's sign recommends (zone 4 says 20K; it grows from there).
-export const recommended = (k) => 20000 * ZONE_GEN.growth ** (k - 4)
-export const guardTier = (k) => Math.min(GUARD_TIERS.length - 1, Math.floor((k - 5) / 5))
-export const guardMark = (k) => (k - 5) % 5
 
-const BIKE_A = ['Turbo', 'Nitro', 'Shadow', 'Blaze', 'Frost', 'Thunder', 'Phantom', 'Viper', 'Comet', 'Nova', 'Titan', 'Zenith', 'Inferno', 'Aurora', 'Spectre', 'Cyclone', 'Neon', 'Royal', 'Galaxy', 'Storm']
-const BIKE_B = ['Cruiser', 'Racer', 'Rider', 'Bolt', 'Hawk', 'Fang', 'GT', 'X', 'Wing', 'Drift', 'Fury', 'Glide', 'Dash', 'Rush', 'Edge', 'Flare']
+// Three of a world's Index bikes for its bays: two from the commoner part of
+// its list and one from the rarer end (its rarest are not left lying about).
+function bayPicks(world, rand) {
+  const list = (INDEX_WORLDS.find((w) => w.name === world)?.bikes ?? []).map((b) => b[0])
+  if (list.length <= 3) return list
+  const cut = Math.ceil(list.length / 2)
+  const low = list.slice(0, cut)
+  const high = list.slice(cut, list.length - 1)
+  const take = (arr) => arr.splice(Math.floor(rand() * arr.length), 1)[0]
+  return [take(low), take(low), take(high.length ? high : low)]
+}
+const RANK = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary', 'Mythical', 'Insane', 'Secret', 'Limited']
 
 // --- Pieces -------------------------------------------------------------------------------------
 // The entrance gate: two studded pillars and a beam lined with neon in the
@@ -112,42 +118,49 @@ function aurora(root, z0, z1, y) {
   }
 }
 
-// A bike for zone k's bays, in its rarity's colours, with tag and aura.
-function bayBike(root, k, x, y, z, yaw, rand) {
-  const rarity = ZONE_GEN.rarities[Math.min(ZONE_GEN.rarities.length - 1, Math.floor((k - 5) / 5))]
-  const col = RARITY[rarity] ?? '#ffffff'
-  const kind = rand()
-  let bike
-  if (k < 10 && kind < 0.35) bike = scooter(col)
-  else if (k < 10 && kind < 0.55) bike = bicycle(col, '#1c1c22', { basket: false, saddle: '#24242c' })
-  else bike = motorbike(col, kind < 0.5 ? '#1a1c24' : '#f4f6fb', k >= 25 ? '#7df9ff' : '#cfd6e0')
-  parked(root, bike, x, y, z, yaw, 2.0, 1.1)
-  const name = `${BIKE_A[Math.floor(rand() * BIKE_A.length)]} ${BIKE_B[Math.floor(rand() * BIKE_B.length)]}`
-  const tag = bikeTag(rarity, name, `$${shortNumber(recommended(k) / 30 * (0.6 + rand() * 0.8))}/s`, 1.05)
+// A catalog bike in a bay: its 3D model, its rarity / name / income tag,
+// sparkles from Epic up and a pulsing ring from Mythical up. Stealing it wakes `guard`.
+export function bayBike(root, name, x, y, z, yaw, rand, guard, { bayW = 2.0, bayD = 1.1 } = {}) {
+  const c = CATALOG.get(name) ?? { rarity: 'Common', income: 4 }
+  const col = RARITY[c.rarity] ?? '#ffffff'
+  const rank = RANK.indexOf(c.rarity)
+  const tag = bikeTag(c.rarity, name, `$${shortNumber(c.income)}/s`, 1.05)
   tag.position.set(x, y + 2.6, z)
   root.add(tag)
   bob(tag, 0.08, 1.6, rand() * 9)
-  if (k >= 10) sparkles(root, x, y + 0.2, z, { count: 10 + Math.min(14, k - 10), radius: 1.2, height: 2.4, color: col, size: 0.35, speed: 0.7, seed: Math.floor(rand() * 999) })
-  if (k >= 20) {
+  const extras = [tag]
+  if (rank >= 3) sparkles(root, x, y + 0.2, z, { count: 8 + rank * 2, radius: 1.2, height: 2.4, color: col, size: 0.35, speed: 0.7, seed: Math.floor(rand() * 999) })
+  if (rank >= 5) {
     const ring = put(root, new TorusGeometry(1.1, 0.06, 6, 28), neon(col, 3), x, y + 0.08, z, false)
     ring.rotation.x = Math.PI / 2
     ring.userData.dynamic = true
     onFrame((dt, t) => ring.scale.setScalar(1 + Math.sin(t * 2.5 + x) * 0.08))
+    extras.push(ring)
   }
+  stealBay(root, () => bikeModel(name), x, y, z, yaw, { name, guard, value: bikeValue(name), bayW, bayD, extras })
 }
 
-// A guard post: the vehicle asleep facing the lane, three bikes in bays in front, the sign.
-function guardPost(root, k, x0, z0, y, side, rand) {
-  const tier = GUARD_TIERS[guardTier(k)]
-  const v = guardVehicle(tier.kind, guardMark(k))
-  place(root, v, x0, y, z0 - 1.5, SOUTH - side * 0.35)
-  if (v.userData.hover) bob(v, 0.25, 1.2, x0)
-  zzz(root, x0, y + (v.userData.zzz ?? 3), z0 - 1.4, k * 0.7)
-  addSnore(x0, y + 1, z0)
-  const big = guardTier(k) >= 4
-  solidBox(big ? 2.6 : 1.4, 1.5, big ? 1.8 : 1.0, x0, y + 1.5, z0 - 1.5, SOUTH - side * 0.35)
-  for (let i = 0; i < 3; i++) bayBike(root, k, x0 - side * (i * 2.6 - 1.2), y, z0 + 4.2 + (i % 2) * 0.6, SOUTH + (rand() - 0.5) * 0.6, rand)
-  place(root, postSign(shortNumber(recommended(k))), x0 + side * 4.2, y, z0 + 2.6, side < 0 ? 0.4 : Math.PI - 0.4)
+// A guard post: the world's vehicle asleep facing the lane, three of its bikes in bays in front, the sign.
+function guardPost(root, k, theme, x0, z0, y, side, rand) {
+  let v = fleetVehicle(theme.guard.kind, theme.guard.mk)
+  if (v.userData.hover) {
+    // The hull bobs inside a holder that does the driving.
+    const holder = new Group()
+    holder.userData = { ...v.userData }
+    v.userData = {}
+    holder.add(v)
+    bob(v, 0.25, 1.2, x0)
+    v = holder
+  }
+  const ud = v.userData
+  const yaw = SOUTH - side * 0.35
+  // Its collider covers the body (not a helicopter's rotor disc or tail).
+  const hx = Math.min(ud.length, ud.sound === 'heli' ? 3 : 9) / 2 - 0.2
+  const collider = solidBox(hx, 1.4, ud.width / 2 - 0.15, x0, y + 1.4, z0 - 1.5, yaw)
+  const guard = sleepingGuard(root, v, x0, y, z0 - 1.5, yaw, { tier: k - 1, zzzAt: [x0, y + (ud.zzz ?? 3), z0 - 1.4], phase: k * 0.7, collider })
+  const front = z0 + Math.max(4.2, ud.length / 2 + 1.6)
+  bayPicks(theme.name, rand).forEach((name, i) => bayBike(root, name, x0 - side * (i * 2.6 - 1.2), y, front + (i % 2) * 0.6, SOUTH + (rand() - 0.5) * 0.6, rand, guard))
+  place(root, postSign(shortNumber(theme.rec)), x0 + side * 4.8, y, front - 1.6, side < 0 ? 0.4 : Math.PI - 0.4)
 }
 
 // --- The zone -------------------------------------------------------------------------------------
@@ -167,16 +180,13 @@ export function buildThemedZone(root, k, theme, z0, z1, y, { last = false } = {}
   if (last) terraceWall(root, { axis: 'x', at: z1, from: -hw - 12, to: hw + 12, out: -1, theme: theme.wall, height: LAYOUT.valley.cliffHeight + 6, seed: k * 37, base: y - 1 })
   zoneGate(root, k, theme, z0 - 1.6, y)
 
-  // Guard posts: alternate sides, spread down the zone.
-  const n = ZONE_GEN.posts.find(([, upTo]) => k <= upTo)[0]
+  // The guard post, on one side half way down the zone.
   const keep = [] // [x, z, r] spots decor stays out of
-  for (let i = 0; i < n; i++) {
-    const side = (k + i) % 2 ? 1 : -1
-    const x0 = side * (hw - 9)
-    const z = z0 - len * ((i + 1) / (n + 1)) - 2
-    guardPost(root, k, x0, z, y, side, rand)
-    keep.push([x0, z + 1, 9])
-  }
+  const side = k % 2 ? 1 : -1
+  const x0 = side * (hw - 9)
+  const pz = z0 - len * 0.5 - 2
+  guardPost(root, k, theme, x0, pz, y, side, rand)
+  keep.push([x0, pz + 2, 11])
   keep.push([0, z0 - 1.6, 4]) // the gate's walkway
 
   // The set piece.

@@ -1,9 +1,9 @@
-import { AdditiveBlending, BoxGeometry, CircleGeometry, CylinderGeometry, DoubleSide, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, SphereGeometry, TorusGeometry } from 'three'
+import { AdditiveBlending, Box3, BoxGeometry, CircleGeometry, CylinderGeometry, DoubleSide, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, SphereGeometry, TorusGeometry } from 'three'
 import { neon, neonScale, put } from './propkit.js'
-import { canvasTexture, plain, sbox, tube } from './kit.js'
+import { canvasTexture, plain, sbox, studMat, tube } from './kit.js'
 import { bake } from './bake.js'
-import { onFrame } from './fx.js'
-import { officer } from './vehicles.js'
+import { onGlobalFrame } from './fx.js'
+import { bakedOfficer } from './vehicles.js'
 
 // The police fleet guarding the lane's zones, weakest to strongest:
 // police bike, police sports bike, police car, police SUV, SWAT truck,
@@ -20,14 +20,33 @@ const WHITE_LAMP = neon('#ffffff', 2.6)
 const TAIL = neon('#ff1a2a', 2.2)
 const AMBER = neon('#ffaa1a', 2.6)
 const GLOW = new MeshBasicMaterial({ color: '#3a8cff', transparent: true, opacity: 0.55, blending: AdditiveBlending, depthWrite: false, side: DoubleSide })
+// While a guard is chasing you (setAlarm) every lamp double-flashes fast:
+// red-red, blue-blue, like a real pursuit pattern.
 let flashing = false
+let alarm = false
+export function setAlarm(on) {
+  alarm = on
+}
+export function pursuitFlash(t) {
+  const p = (t * 1.6) % 1
+  const red = p < 0.07 || (p > 0.13 && p < 0.2) ? 1 : 0
+  const blue = (p > 0.5 && p < 0.57) || (p > 0.63 && p < 0.7) ? 1 : 0
+  return [red, blue]
+}
 function startFlashing() {
   if (flashing) return
   flashing = true
-  onFrame((dt, t) => {
-    const p = (t * 1.6) % 2
-    const a = p < 1 ? 1 - p * 0.85 : 0.15
-    const b = p >= 1 ? 1 - (p - 1) * 0.85 : 0.15
+  onGlobalFrame((dt, t) => {
+    let a, b
+    if (alarm) {
+      ;[a, b] = pursuitFlash(t)
+      a = a * 1.4 - 0.1
+      b = b * 1.4 - 0.1
+    } else {
+      const p = (t * 1.6) % 2
+      a = p < 1 ? 1 - p * 0.85 : 0.15
+      b = p >= 1 ? 1 - (p - 1) * 0.85 : 0.15
+    }
     neonScale(RED, 0.25 + a)
     neonScale(BLUE, 0.25 + b)
     GLOW.opacity = 0.35 + Math.sin(t * 2.2) * 0.15
@@ -190,48 +209,163 @@ function underglow(g, len, wid) {
 const trimHex = (mk) => (mk >= 4 ? '#ffd23a' : mk >= 2 ? '#d9dee6' : '#2a2d36')
 
 // --- Tier 1: police bike ---------------------------------------------------------------------
-export function policeBike(mk = 0) {
-  const g = new Group()
-  const body = paint(mk >= 4 ? '#f4f6fb' : '#f4f6fb')
-  const navy = paint('#1b2a6a')
-  const blk = plain('#1a1c24', { roughness: 0.5 })
-  bikeWheel(g, -0.72, 0.38, 0.36, 0.07, trimHex(mk))
-  bikeWheel(g, 0.76, 0.38, 0.36, 0.07, trimHex(mk))
-  tube(g, [-0.72, 0.38, 0], [-0.1, 0.62, 0], 0.045, metal('#8a93a6'))
-  for (const z of [-0.08, 0.08]) tube(g, [0.76, 0.38, z], [0.5, 1.08, z], 0.03, metal())
-  put(g, new BoxGeometry(0.6, 0.36, 0.3), metal('#6a7080'), -0.02, 0.6, 0) // engine
-  for (let i = 0; i < 3; i++) put(g, new BoxGeometry(0.5, 0.03, 0.34), metal('#9aa3b2'), -0.02, 0.5 + i * 0.08, 0, false)
-  put(g, new BoxGeometry(0.62, 0.3, 0.38), body, 0.18, 0.92, 0) // tank
-  decals(g, livery('POLICE', '#1b2a6a', '#ffffff'), 0.18, 0.92, 0.19, 0.58, 0.18)
-  put(g, new BoxGeometry(0.66, 0.12, 0.32), blk, -0.36, 0.98, 0) // seat
-  put(g, new BoxGeometry(0.5, 0.42, 0.62), navy, -0.62, 0.86, 0) // pannier box
-  decals(g, livery('POLICE', '#ffffff', '#1b2a6a'), -0.62, 0.86, 0.31, 0.48, 0.24)
-  const fender = put(g, new BoxGeometry(0.42, 0.06, 0.18), body, 0.82, 0.78, 0)
-  fender.rotation.z = -0.2
-  put(g, new BoxGeometry(0.28, 0.34, 0.5), body, 0.62, 1.1, 0) // headlight nacelle
-  put(g, new CircleGeometry(0.1, 14), WHITE_LAMP, 0.765, 1.08, 0, false).rotation.y = Math.PI / 2
-  const ws = put(g, new BoxGeometry(0.04, 0.38, 0.5), new MeshStandardMaterial({ color: '#9fc8ff', transparent: true, opacity: 0.45, roughness: 0.1 }), 0.66, 1.42, 0, false)
-  ws.rotation.z = -0.35
-  put(g, new BoxGeometry(0.06, 0.06, 0.8), metal(), 0.5, 1.26, 0) // bars
-  mirrors(g, 0.52, 1.3, 0.4, blk)
-  for (const s of [-1, 1]) {
-    put(g, new BoxGeometry(0.1, 0.1, 0.1), s < 0 ? RED : BLUE, 0.72, 1.32, s * 0.2, false) // front strobes
-    put(g, new BoxGeometry(0.08, 0.1, 0.08), s < 0 ? RED : BLUE, -0.86, 1.14, s * 0.24, false) // rear strobes
-    tube(g, [0.3, 0.5, s * 0.18], [0.3, 0.8, s * 0.32], 0.025, metal()) // crash bar
+// A big white police tourer (boxer twin): tall screen and fairing with twin
+// headlamps, chrome crash bars carrying strobes, panniers and a top box in
+// POLICE livery with blue/yellow checks, red and blue lamps on two rear masts.
+let checkMat = null
+function checks() {
+  checkMat ??= (() => {
+    const tex = canvasTexture(256, 64, (ctx) => {
+      for (let c = 0; c < 8; c++) for (let r = 0; r < 2; r++) {
+        ctx.fillStyle = (c + r) % 2 ? '#ffd21a' : '#1f4fd8'
+        ctx.fillRect(c * 32, r * 32, 32, 32)
+      }
+    })
+    const m = new MeshBasicMaterial({ map: tex, polygonOffset: true, polygonOffsetFactor: -2 })
+    m.color.setScalar(0.9)
+    return m
+  })()
+  return checkMat
+}
+let plate = null
+function plateMat() {
+  plate ??= new MeshBasicMaterial({
+    map: canvasTexture(96, 52, (ctx, w, h) => {
+      ctx.fillStyle = '#f4f2e8'
+      ctx.fillRect(0, 0, w, h)
+      ctx.fillStyle = '#1b2a6a'
+      ctx.font = '900 22px "Arial Black", sans-serif'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText('PD 01', w / 2, h / 2 + 1)
+    }),
+  })
+  return plate
+}
+// Cast alloy wheel: tyre, rim, five twin spokes, hub, brake disc(s) with red calipers.
+function alloyWheel(g, x, y, r, w, rimHex, front) {
+  put(g, new TorusGeometry(r - w * 0.2, w, 10, 30), tyre(), x, y, 0)
+  put(g, new TorusGeometry(r - w * 1.05, w * 0.3, 6, 30), metal(rimHex), x, y, 0, false)
+  const sp = metal(rimHex)
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2
+    for (const d of [-0.12, 0.12]) {
+      const b = put(g, new BoxGeometry(r * 0.66, 0.03, 0.03), sp, x + Math.cos(a + d) * r * 0.36, y + Math.sin(a + d) * r * 0.36, 0, false)
+      b.rotation.z = a + d
+    }
   }
-  tube(g, [-0.2, 0.42, 0.16], [-0.95, 0.52, 0.2], 0.05, metal('#b8c0cc')) // exhaust
-  put(g, new BoxGeometry(0.05, 0.1, 0.14), TAIL, -0.9, 0.98, 0, false)
-  if (mk >= 2) tube(g, [-0.75, 1.1, 0.25], [-0.75, 1.9, 0.25], 0.012, plain('#2a2d36')) // radio antenna
-  if (mk >= 3) put(g, new BoxGeometry(0.2, 0.06, 0.34), RED, -0.62, 1.1, 0, false)
-  const cop = officer()
-  cop.position.set(-0.3, 1.04, 0)
-  g.add(cop)
+  const hub = put(g, new CylinderGeometry(r * 0.15, r * 0.15, w * 2.6, 12), metal('#8a93a6'), x, y, 0, false)
+  hub.rotation.x = Math.PI / 2
+  for (const s of front ? [-1, 1] : [1]) {
+    const disc = put(g, new CylinderGeometry(r * 0.5, r * 0.5, 0.018, 20), metal('#9aa3b2'), x, y, s * w * 1.25, false)
+    disc.rotation.x = Math.PI / 2
+    put(g, new BoxGeometry(0.1, 0.16, 0.06), plain('#c4202c', { roughness: 0.4 }), x + 0.12, y + r * 0.32, s * w * 1.45) // caliper
+  }
+}
+export function policeBike(mk = 0) {
+  startFlashing()
+  const g = new Group()
+  const white = paint('#f4f6fb')
+  const blk = plain('#1a1c24', { roughness: 0.55 })
+  const grey = metal('#6a7080')
+  const chrome = metal(mk >= 4 ? '#ffd23a' : '#dfe5ee')
+  const rim = mk >= 2 ? trimHex(mk) : '#3a3f4c'
+  const screen = new MeshStandardMaterial({ color: '#a8cfff', transparent: true, opacity: 0.42, roughness: 0.05, metalness: 0.2 })
+  const XR = -0.8
+  const XF = 0.84
+  const R = 0.37
+  alloyWheel(g, XR, R, R, 0.075, rim, false)
+  alloyWheel(g, XF, R, R, 0.065, rim, true)
+
+  // Rear: shaft-drive swingarm, hugger, number plate, tail lamp.
+  put(g, new BoxGeometry(0.72, 0.1, 0.08), blk, -0.44, 0.44, 0.13).rotation.z = 0.2
+  put(g, new BoxGeometry(0.2, 0.18, 0.12), blk, XR + 0.06, R, 0.14) // final drive
+  put(g, new BoxGeometry(0.5, 0.05, 0.2), blk, XR + 0.05, R + 0.42, 0).rotation.z = -0.35
+  // Engine: crankcase, gearbox, two boxer cylinders with finned heads.
+  put(g, new BoxGeometry(0.5, 0.36, 0.32), grey, 0.08, 0.52, 0)
+  put(g, new BoxGeometry(0.34, 0.3, 0.26), grey, -0.28, 0.56, 0)
+  for (const s of [-1, 1]) {
+    const cyl = put(g, new CylinderGeometry(0.11, 0.11, 0.24, 14), metal('#b8c0cc'), 0.2, 0.6, s * 0.28)
+    cyl.rotation.x = Math.PI / 2
+    for (let i = 0; i < 4; i++) {
+      const fin = put(g, new CylinderGeometry(0.14, 0.14, 0.018, 14), metal('#d0d6de'), 0.2, 0.6, s * (0.2 + i * 0.05), false)
+      fin.rotation.x = Math.PI / 2
+    }
+    put(g, new BoxGeometry(0.24, 0.2, 0.08), blk, 0.22, 0.6, s * 0.44) // valve cover
+    tube(g, [0.28, 0.5, s * 0.36], [0.1, 0.28, s * 0.2], 0.03, chrome) // header
+    // Crash bars round the cylinders, a strobe on each.
+    tube(g, [0.48, 0.92, s * 0.22], [0.42, 0.66, s * 0.5], 0.024, chrome)
+    tube(g, [0.42, 0.66, s * 0.5], [0.08, 0.4, s * 0.36], 0.024, chrome)
+    put(g, new BoxGeometry(0.08, 0.1, 0.08), s < 0 ? RED : BLUE, 0.45, 0.72, s * 0.52, false)
+    put(g, new BoxGeometry(0.14, 0.03, 0.12), blk, -0.12, 0.4, s * 0.24) // footpeg
+  }
+  tube(g, [0.1, 0.28, 0.2], [-0.45, 0.36, 0.25], 0.03, chrome)
+  const muff = put(g, new CylinderGeometry(0.085, 0.07, 0.55, 14), chrome, -0.7, 0.42, 0.26)
+  muff.rotation.z = Math.PI / 2 - 0.12
+  put(g, new CylinderGeometry(0.05, 0.05, 0.03, 10), blk, -0.98, 0.45, 0.26, false).rotation.z = Math.PI / 2
+  tube(g, [-0.2, 0.36, -0.18], [-0.38, 0.02, -0.34], 0.018, blk) // side stand
+
+  // Front: forks, fender, the fairing, twin lamps, the screen, mirrors with indicators.
+  for (const z of [-0.09, 0.09]) {
+    tube(g, [XF, R, z], [0.68, 0.72, z], 0.032, blk)
+    tube(g, [0.68, 0.72, z], [0.56, 1.05, z], 0.03, chrome)
+  }
+  put(g, new BoxGeometry(0.48, 0.05, 0.18), white, XF + 0.02, R + 0.42, 0).rotation.z = -0.18
+  put(g, new BoxGeometry(0.3, 0.05, 0.18), white, XF - 0.22, R + 0.43, 0).rotation.z = 0.25
+  put(g, new BoxGeometry(0.62, 0.42, 0.62), white, 0.48, 0.92, 0).rotation.z = -0.32
+  put(g, new BoxGeometry(0.3, 0.32, 0.56), white, 0.7, 1.16, 0) // nose
+  for (const s of [-1, 1]) {
+    put(g, new BoxGeometry(0.62, 0.36, 0.06), white, 0.38, 0.92, s * 0.33).rotation.z = -0.25
+    put(g, new BoxGeometry(0.4, 0.12, 0.065), blk, 0.3, 0.74, s * 0.335) // lower vent
+    put(g, new CircleGeometry(0.075, 14), WHITE_LAMP, 0.856, 1.14, s * 0.12, false).rotation.y = Math.PI / 2
+    put(g, new BoxGeometry(0.03, 0.06, 0.08), s < 0 ? RED : BLUE, 0.86, 1.02, s * 0.22, false)
+    tube(g, [0.62, 1.28, s * 0.26], [0.6, 1.36, s * 0.42], 0.016, blk) // mirror stalk
+    put(g, new BoxGeometry(0.06, 0.12, 0.18), white, 0.6, 1.38, s * 0.46)
+    put(g, new BoxGeometry(0.065, 0.03, 0.12), AMBER, 0.6, 1.33, s * 0.46, false)
+    put(g, new BoxGeometry(0.12, 0.06, 0.1), blk, 0.46, 1.24, s * 0.42) // grip
+    put(g, new BoxGeometry(0.03, 0.12, 0.12), blk, 0.53, 1.24, s * 0.42) // hand guard
+    put(g, new BoxGeometry(0.08, 0.08, 0.08), s < 0 ? RED : BLUE, 0.66, 1.36, s * 0.24, false) // pursuit lamp
+  }
+  decals(g, checks(), 0.4, 0.95, 0.36, 0.42, 0.12)
+  decals(g, livery('POLICE', '#1b2a6a', '#ffffff', mk >= 4), 0.5, 1.12, 0.29, 0.5, 0.14)
+  put(g, new BoxGeometry(0.03, 0.58, 0.54), screen, 0.72, 1.55, 0, false).rotation.z = -0.42
+  put(g, new BoxGeometry(0.03, 0.04, 0.5), blk, 0.6, 1.3, 0, false) // screen base
+  tube(g, [0.46, 1.24, -0.36], [0.46, 1.24, 0.36], 0.018, blk) // bars
+  put(g, new BoxGeometry(0.1, 0.16, 0.34), blk, 0.56, 1.3, 0) // dash
+  put(g, new BoxGeometry(0.02, 0.1, 0.18), neon('#7fe0ff', 1.4), 0.62, 1.34, 0, false)
+  put(g, new CylinderGeometry(0.07, 0.07, 0.04, 12), chrome, 0.62, 0.66, 0.2, false).rotation.z = Math.PI / 2 // siren speaker
+
+  // Tank, seat, panniers, top box, masts, antenna.
+  put(g, new BoxGeometry(0.5, 0.28, 0.42), white, 0.16, 1.02, 0)
+  put(g, new BoxGeometry(0.34, 0.03, 0.3), blk, 0.12, 1.17, 0) // tank pad
+  put(g, new BoxGeometry(0.5, 0.12, 0.38), blk, -0.26, 1.02, 0) // rider seat
+  put(g, new BoxGeometry(0.16, 0.1, 0.34), blk, -0.5, 1.07, 0)
+  put(g, new BoxGeometry(0.6, 0.18, 0.4), white, -0.52, 0.9, 0) // tail
+  for (const s of [-1, 1]) {
+    put(g, new BoxGeometry(0.62, 0.46, 0.26), white, -0.62, 0.74, s * 0.36) // pannier
+    put(g, new BoxGeometry(0.64, 0.08, 0.28), blk, -0.62, 0.99, s * 0.36) // lid seal
+    tube(g, [-0.86, 1.18, s * 0.2], [-0.94, 1.66, s * 0.22], 0.02, blk) // rear mast
+    put(g, new BoxGeometry(0.1, 0.16, 0.1), s < 0 ? RED : BLUE, -0.95, 1.72, s * 0.22, false)
+  }
+  decals(g, checks(), -0.62, 0.62, 0.495, 0.58, 0.1)
+  decals(g, livery('POLICE', '#ffffff', '#1b2a6a'), -0.62, 0.8, 0.495, 0.56, 0.16)
+  put(g, new BoxGeometry(0.44, 0.36, 0.5), white, -0.8, 1.18, 0) // top box
+  put(g, new BoxGeometry(0.46, 0.06, 0.52), blk, -0.8, 1.38, 0)
+  decals(g, checks(), -0.8, 1.06, 0.25, 0.42, 0.1)
+  put(g, new BoxGeometry(0.03, 0.12, 0.32), TAIL, -1.03, 1.18, 0, false)
+  put(g, new BoxGeometry(0.03, 0.06, 0.12), TAIL, -0.96, 0.82, 0, false)
+  put(g, new PlaneGeometry(0.26, 0.14), plateMat(), -1.0, 0.68, 0, false).rotation.y = -Math.PI / 2
+  tube(g, [-0.9, 1.2, -0.18], [-0.98, 2.3, -0.2], 0.008, plain('#2a2d36')) // radio whip
+  if (mk >= 3) put(g, new BoxGeometry(0.2, 0.06, 0.34), RED, -0.62, 1.04, 0, false)
+  g.userData.rider = { x: -0.3, y: 1.04, z: 0, rz: 0 }
+  g.userData.lamps = [[-0.95, 1.72, -0.22], [-0.95, 1.72, 0.22], [0.66, 1.36, -0.24], [0.66, 1.36, 0.24]]
   g.userData.zzz = 2.9
   return g
 }
 
 // --- Tier 2: police sports bike --------------------------------------------------------------
 export function policeSportsBike(mk = 0) {
+  startFlashing()
   const g = new Group()
   const body = paint('#f4f6fb')
   const navy = paint(mk >= 4 ? '#0c1236' : '#1b2a6a')
@@ -265,27 +399,29 @@ export function policeSportsBike(mk = 0) {
   put(g, new BoxGeometry(0.05, 0.06, 0.2), TAIL, -0.88, 1.2, 0, false)
   if (mk >= 2) put(g, new BoxGeometry(0.1, 0.12, 0.26), metal('#d9dee6'), -0.75, 0.9, 0) // radio box
   if (mk >= 3) lightBar(g, -0.8, 1.04, 0.36, 0)
-  const cop = officer()
-  cop.position.set(-0.22, 1.12, 0)
-  cop.rotation.z = -0.25 // slumped over the tank
-  g.add(cop)
+  g.userData.rider = { x: -0.22, y: 1.12, z: 0, rz: -0.25 } // slumped over the tank
+  g.userData.lamps = [[0.9, 0.86, -0.18], [0.9, 0.86, 0.18]]
   g.userData.zzz = 3
   return g
 }
 
 // --- Tier 3: police car ----------------------------------------------------------------------
-export function policeCar2(mk = 0) {
+// `blackTop`: studded black hood, roof and trunk lid (zone 2's black-and-white).
+export function policeCar2(mk = 0, { blackTop = false } = {}) {
+  startFlashing()
   const g = new Group()
   const white = paint('#f4f6fb')
   const black = paint('#14151b')
+  const top = blackTop ? studMat('#1d1f2a') : black
   const hw = 1.02
-  sbox(g, 4.6, 0.55, hw * 2, null, 0, 0.32, 0, { mat: black }) // lower body (black)
-  sbox(g, 1.6, 0.18, hw * 2, null, 1.5, 0.86, 0, { mat: black }) // hood
-  sbox(g, 1.0, 0.18, hw * 2, null, -1.8, 0.86, 0, { mat: black }) // trunk
+  sbox(g, 4.6, 0.55, hw * 2, null, 0, 0.32, 0, { mat: blackTop ? white : black }) // lower body
+  if (blackTop) sbox(g, 4.62, 0.14, hw * 2 + 0.02, null, 0, 0.05, 0, { mat: black, studs: false }) // sill
+  sbox(g, 1.6, 0.18, hw * 2, null, 1.5, 0.86, 0, { mat: top }) // hood
+  sbox(g, 1.0, 0.18, hw * 2, null, -1.8, 0.86, 0, { mat: top }) // trunk
   sbox(g, 2.1, 0.22, hw * 2 + 0.02, null, -0.15, 0.82, 0, { mat: white }) // doors (white)
   const gm = glassMat()
   sbox(g, 2.2, 0.62, hw * 2 - 0.12, null, -0.25, 1.04, 0, { mat: gm }) // cabin glass
-  sbox(g, 1.9, 0.08, hw * 2 - 0.1, null, -0.3, 1.66, 0, { mat: white }) // roof
+  sbox(g, 1.9, 0.08, hw * 2 - 0.1, null, -0.3, 1.66, 0, { mat: blackTop ? top : white }) // roof
   for (const x of [0.78, -0.25, -1.3]) for (const s of [-1, 1]) sbox(g, 0.1, 0.62, 0.06, null, x, 1.04, s * (hw - 0.09), { mat: white }) // pillars
   decals(g, livery('POLICE', '#14151b', '#ffffff', mk >= 4), -0.15, 0.82, hw + 0.01, 2.1, 0.5)
   for (const s of [-1, 1]) for (const x of [0.4, -0.7]) put(g, new BoxGeometry(0.16, 0.03, 0.02), metal(), x, 0.92, s * (hw + 0.02), false) // handles
@@ -502,6 +638,8 @@ export function hoverTank(mk = 0) {
   }
   g.userData.zzz = 4.6
   g.userData.hover = true
+  g.userData.sound = 'hover'
+  g.userData.fly = 1.2
   return g
 }
 
@@ -511,8 +649,46 @@ export const POLICE = { policeBike, policeSportsBike, policeCar: policeCar2, pol
 // A finished guard vehicle baked to a few meshes; userData.zzz = height of its
 // snores, userData.hover = it floats (the caller bobs it).
 export function guardVehicle(kind, mk) {
-  const g = POLICE[kind](mk)
+  return finishGuard(POLICE[kind](mk))
+}
+
+// Bakes a guard vehicle (built at the origin, front +X) and works out what the
+// chase needs: its size, where its pursuit lamps are (the top of the light bar
+// unless the builder named them), and an officer whose head can lift when he
+// wakes (bikes; car drivers are part of the bake). Flagged dynamic: it drives.
+const box = new Box3()
+export function finishGuard(g) {
+  const ud = { ...g.userData }
+  // Spinning parts (rotors, fans: { obj, axis, rate }, direct children) are baked on their own.
+  const spin = ud.spinners ?? []
+  for (const sp of spin) sp.obj.removeFromParent()
   const out = bake(g, true)
-  out.userData = { ...g.userData }
+  box.setFromObject(out)
+  ud.spinners = spin.map((sp) => {
+    const b = bake(sp.obj, true)
+    out.add(b)
+    return { ...sp, obj: b }
+  })
+  ud.length = box.max.x - box.min.x
+  ud.width = box.max.z - box.min.z
+  ud.height = box.max.y
+  const cx = (box.min.x + box.max.x) / 2
+  ud.lamps ??= [[cx, box.max.y + 0.05, -ud.width * 0.22], [cx, box.max.y + 0.05, ud.width * 0.22]]
+  // Headlamps (lit in the dark zones while it drives): low on the nose unless named.
+  const hy = box.min.y + Math.min(1.2, (box.max.y - box.min.y) * 0.3)
+  ud.headlights ??= [[box.max.x, hy, -ud.width * 0.3], [box.max.x, hy, ud.width * 0.3]]
+  ud.sound ??= ud.length > 5.5 ? 'tank' : ud.length > 3 ? 'car' : 'bike'
+  if (ud.rider) {
+    const cop = bakedOfficer()
+    cop.position.set(ud.rider.x, ud.rider.y, ud.rider.z)
+    cop.rotation.z = ud.rider.rz
+    out.add(cop)
+    ud.officer = cop
+  }
+  ud.dynamic = true
+  out.userData = ud
   return out
 }
+
+// Shared parts for the zone fleet (fleet.js).
+export { RED, BLUE, WHITE_LAMP, TAIL, AMBER, GLOW, startFlashing, tyre, metal, paint, glassMat, livery, decals, wheel, lightBar, carFittings, mirrors, driver, underglow, trimHex }

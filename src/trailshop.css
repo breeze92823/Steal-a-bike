@@ -1,0 +1,106 @@
+/* The Trail Shop window's cards (trailshop.js); the shell is shopwin.css. */
+.ts-row {
+  display: flex;
+  gap: calc(var(--u) * 12);
+  overflow-x: auto;
+  overflow-y: hidden;
+  margin: calc(var(--u) * 14) calc(var(--u) * 14) calc(var(--u) * 8);
+  padding-bottom: calc(var(--u) * 12);
+  touch-action: pan-x;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #c9c9cf transparent;
+}
+.ts-row::-webkit-scrollbar {
+  height: max(6px, calc(var(--u) * 8));
+}
+.ts-row::-webkit-scrollbar-track {
+  background: transparent;
+}
+.ts-row::-webkit-scrollbar-thumb {
+  background: #c9c9cf;
+  border-radius: 99px;
+}
+
+.ts-card {
+  flex: 0 0 calc((100% - var(--u) * 24) / 3); /* three to a page */
+  min-width: 190px;
+  box-sizing: border-box;
+  height: clamp(210px, calc(100dvh - 220px), calc(var(--u) * 470));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: calc(var(--u) * 12) calc(var(--u) * 14) calc(var(--u) * 12);
+  background: var(--bg);
+  border: calc(var(--u) * 6) solid #2a2430;
+  border-radius: calc(var(--u) * 8);
+  box-shadow: inset 0 0 0 calc(var(--u) * 3) rgba(255, 255, 255, 0.4);
+}
+.ts-card .nm {
+  font-size: max(17px, calc(var(--u) * 40));
+  margin-top: calc(var(--u) * 6);
+}
+.ts-card .pic {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: grid;
+  place-items: center;
+}
+.ts-card .art {
+  width: 100%;
+  height: 100%;
+  max-height: calc(var(--u) * 290);
+  filter: drop-shadow(0 calc(var(--u) * 4) calc(var(--u) * 3) rgba(0, 0, 0, 0.25));
+}
+.ts-card .spd {
+  width: 100%;
+  box-sizing: border-box;
+  text-align: center;
+  font-size: max(17px, calc(var(--u) * 42));
+  padding: calc(var(--u) * 5) 0 calc(var(--u) * 4);
+  background: linear-gradient(180deg, #555 0%, #444 100%);
+  border: calc(var(--u) * 4) solid #2a2a2e;
+  border-radius: calc(var(--u) * 4);
+}
+.ts-card .spd b {
+  color: #7dff2a;
+  font-weight: 700;
+}
+.ts-card .btns {
+  width: 100%;
+  display: flex;
+  gap: calc(var(--u) * 12);
+  margin-top: calc(var(--u) * 8);
+}
+
+.hud .ts-btn {
+  flex: 1.25;
+  height: calc(var(--u) * 58);
+  touch-action: pan-x; /* a swipe that starts on a button still scrolls the row */
+}
+.hud .ts-gems {
+  flex: 1;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--u) * 6);
+  border-radius: calc(var(--u) * 4);
+  font-size: max(17px, calc(var(--u) * 40));
+  background: linear-gradient(180deg, #e04aff 0%, #b622ea 60%, #9a14d0 100%);
+  border: calc(var(--u) * 4) solid #48086a;
+  box-shadow: inset 0 0 0 calc(var(--u) * 2) #f0a0ff;
+}
+.ts-gems .i-gem {
+  width: max(16px, calc(var(--u) * 34));
+  height: max(16px, calc(var(--u) * 34));
+  filter: drop-shadow(0 0 calc(var(--u) * 2) #1a1230) drop-shadow(0 calc(var(--u) * 2) 0 #1a1230);
+}
+
+/* Short landscape phones: the cards take the title's room. */
+@media (max-height: 460px) {
+  .ts-card {
+    height: clamp(200px, calc(100dvh - 120px), calc(var(--u) * 470));
+  }
+}

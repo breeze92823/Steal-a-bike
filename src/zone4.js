@@ -3,12 +3,13 @@ import { LANE, LAYOUT, PALETTE } from './config.js'
 import { bake } from './bake.js'
 import { neon, put, solidBox } from './propkit.js'
 import { mulberry32, paintWaterfall, toTexture } from './textures.js'
-import { motorbike, plain, sbox, studMat, voxelTree } from './kit.js'
+import { plain, sbox, studMat, voxelTree } from './kit.js'
 import { BROWN_CLIFF, terraceWall } from './lobby.js'
-import { motes, onFrame, sparkles, zzz } from './fx.js'
-import { addSnore, addWaterfall } from './audio.js'
-import { armoredTruck, scooter } from './vehicles.js'
-import { floor, ICE, parked, place, postSign, puddle, snowChunk, snowyPine, SOUTH } from './lanekit.js'
+import { motes, onFrame, sparkles } from './fx.js'
+import { addWaterfall } from './audio.js'
+import { fleetVehicle } from './fleet.js'
+import { bayBike } from './zones.js'
+import { floor, ICE, place, postSign, puddle, sleepingGuard, snowChunk, snowyPine, SOUTH } from './lanekit.js'
 
 // Zone 4: a snow basin walled in by ice. Tall light-blue ice cliffs with snow
 // caps and snowy pines run up both sides; across the north end an ice wall
@@ -75,13 +76,14 @@ function arch(root, y) {
 }
 
 function truckPost(root, x0, z0, y) {
-  place(root, armoredTruck(), x0, y, z0 - 1.5, SOUTH + 0.1)
-  zzz(root, x0 + 0.3, y + 5.0, z0 - 1.2, 1.7)
-  addSnore(x0, 1, z0)
-  parked(root, motorbike('#7ee03a', '#3a3f4c', '#d9dee6'), x0 - 3.2, y, z0 + 2.2, SOUTH - 0.5, 2.0, 1.1)
-  parked(root, motorbike('#26262e', '#c8f03a', '#e8f0a0'), x0 - 0.6, y, z0 + 3.4, SOUTH + 0.1, 2.0, 1.1)
-  parked(root, scooter('#3a8cff'), x0 + 2.8, y, z0 + 2.6, SOUTH + 0.3, 1.6, 0.95)
-  place(root, postSign(Z.recommended), x0 + 0.9, y, z0 + 1.4, -0.4)
+  const yaw = SOUTH + 0.1
+  const collider = solidBox(3.0, 1.5, 1.15, x0, y + 1.5, z0 - 1.5, yaw)
+  const guard = sleepingGuard(root, fleetVehicle('riotTruck'), x0, y, z0 - 1.5, yaw, { tier: 3, zzzAt: [x0 + 0.3, y + 5.2, z0 - 1.2], phase: 1.7, collider })
+  const rand = mulberry32(441)
+  bayBike(root, 'Frost Bite', x0 - 3.4, y, z0 + 3.0, SOUTH - 0.5, rand, guard)
+  bayBike(root, 'Glacier GT', x0 - 0.6, y, z0 + 4.2, SOUTH + 0.1, rand, guard)
+  bayBike(root, 'Snow Vispo', x0 + 2.8, y, z0 + 3.4, SOUTH + 0.3, rand, guard, { bayW: 1.6, bayD: 0.95 })
+  place(root, postSign(Z.recommended), x0 + 4.8, y, z0 + 0.8, -0.4)
 }
 
 export function buildZone4(root) {

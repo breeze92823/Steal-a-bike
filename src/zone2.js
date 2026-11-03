@@ -1,26 +1,33 @@
 import { LANE, LAYOUT, PALETTE } from './config.js'
 import { mulberry32 } from './textures.js'
 import { BROWN_CLIFF, terraceWall } from './lobby.js'
-import { motes, zzz } from './fx.js'
-import { addSnore } from './audio.js'
-import { policeCar, scooter } from './vehicles.js'
-import { clump, floor, parked, patch, place, postSign, puddle, SOUTH } from './lanekit.js'
+import { motes } from './fx.js'
+import { motorbike } from './kit.js'
+import { scooter } from './vehicles.js'
+import { finishGuard, policeCar2 } from './police.js'
+import { clump, floor, patch, place, postSign, puddle, sleepingGuard, SOUTH, stealBay } from './lanekit.js'
 
 // Zone 2: a raised grass plateau (you step up onto it from zone 1; its darker
-// edge is the step). A guard asleep in his patrol car with three mint scooters
-// beside it and a "600 Recommended" sign, a lily-pad puddle on the right, and
+// edge is the step). A guard asleep in his black-and-white patrol car with
+// three mopeds beside it (Vispo, Cream Courier, Doka) and a "600 Recommended" sign, a lily-pad puddle on the right, and
 // yellow and green flecks drifting in the air.
 const L = LAYOUT
 const Z = LANE.zone2
 const hw = L.valley.halfWidth
 
 function carPost(root, x0, z0, y) {
-  place(root, policeCar(), x0 + 1, y, z0 - 0.5, SOUTH + 0.45)
-  zzz(root, x0 + 1.2, y + 3.3, z0 - 0.4, 0.6)
-  addSnore(x0, 1, z0)
-  parked(root, scooter('#86e3d6'), x0 - 3.2, y, z0 + 1.6, Math.PI + 0.35, 1.6, 0.95)
-  parked(root, scooter('#9cebe0'), x0 - 1.2, y, z0 + 2.4, SOUTH - 0.25, 1.6, 0.95)
-  parked(root, scooter('#86e3d6'), x0 + 3.4, y, z0 + 1.8, SOUTH + 0.2, 1.6, 0.95)
+  const car = finishGuard(policeCar2(0, { blackTop: true }))
+  const guard = sleepingGuard(root, car, x0 + 1, y, z0 - 0.5, SOUTH + 0.45, { tier: 1, zzzAt: [x0 + 1.2, y + 3.3, z0 - 0.4], phase: 0.6 })
+  const vispo = () => scooter('#7fe6f0', { crate: true })
+  const courier = () => scooter('#ffd21a', { box: '#ff9a1a' })
+  const doka = () => {
+    const m = motorbike('#24242c', '#1a1c24', '#c8f03a')
+    m.scale.setScalar(0.85)
+    return m
+  }
+  stealBay(root, vispo, x0 - 3.2, y, z0 + 1.6, Math.PI + 0.35, { name: 'Vispo', guard, value: 600, bayW: 1.6, bayD: 0.95 })
+  stealBay(root, courier, x0 - 1.2, y, z0 + 2.4, SOUTH - 0.25, { name: 'Cream Courier', guard, value: 750, bayW: 1.6, bayD: 0.95 })
+  stealBay(root, doka, x0 + 3.4, y, z0 + 1.8, SOUTH + 0.2, { name: 'Doka', guard, value: 900 })
   place(root, postSign(Z.recommended), x0 + 5.6, y, z0 + 0.4, -0.5)
 }
 

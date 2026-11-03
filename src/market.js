@@ -1,5 +1,7 @@
 import { BoxGeometry, CircleGeometry, CylinderGeometry, Group, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, RepeatWrapping, RingGeometry, Shape, ShapeGeometry, SphereGeometry, TorusGeometry } from 'three'
-import { PALETTE } from './config.js'
+import { LEADERBOARD, PALETTE } from './config.js'
+import { net, onLeaderboard } from './net.js'
+import { shortNumber } from './hud.js'
 import { bake, bakeStatic } from './bake.js'
 import { label, neon, put, solidBox, solidPole } from './propkit.js'
 import { canvasTexture, hay, lampPost, liveLabel, motorbike, outlinedText, plain, pumpkin, sbox, studMat, voxelTree } from './kit.js'
@@ -163,29 +165,65 @@ function fuseMachine(root, x, z) {
   sparkles(root, x, 4.6, z, { count: 14, radius: 1.4, height: 2, color: '#7fe8ff', size: 0.3, speed: 0.6 })
 }
 
-function leaderboardTexture() {
-  const rows = [
-    ['NeonDrifter', '$12.3T'], ['WheelieKing', '$8.6T'], ['GearGhost', '$8.1T'], ['ChromeQueen', '$7.6T'], ['TurboToast', '$6.4T'],
-    ['PedalPusher', '$5.4T'], ['SprocketSam', '$5.2T'], ['NitroNova', '$4.9T'], ['KickstandKid', '$4.8T'], ['RevRaccoon', '$4.6T'],
-  ]
-  return canvasTexture(512, 720, (ctx, w, h) => {
-    ctx.fillStyle = '#10163a'
-    ctx.fillRect(0, 0, w, h)
-    ctx.strokeStyle = '#25e6ff'
-    ctx.lineWidth = 22
-    ctx.strokeRect(11, 11, w - 22, h - 22)
-    outlinedText(ctx, 'MOST CASH', w / 2, 74, { size: 58, color: '#5dff4a', width: 0 })
-    outlinedText(ctx, 'GLOBAL TOP 50 • SCROLL', w / 2, 120, { size: 22, color: '#5fe4ff', width: 0 })
-    rows.forEach(([n, v], i) => {
+// The MOST CASH board: the server's global top 50 by cash (net.js `leaderboard`, refreshed every
+// 60 s), LEADERBOARD.rows at a time, paging through them every LEADERBOARD.pageEvery s. Offline
+// (no server / still loading) it says so instead of showing made-up players.
+const BOARD = { w: 512, h: 720, tex: null, rows: null, rank: null, page: 0, shown: '' }
+
+function drawBoard(ctx, w, h) {
+  ctx.fillStyle = '#10163a'
+  ctx.fillRect(0, 0, w, h)
+  ctx.strokeStyle = '#25e6ff'
+  ctx.lineWidth = 22
+  ctx.strokeRect(11, 11, w - 22, h - 22)
+  outlinedText(ctx, 'MOST CASH', w / 2, 74, { size: 58, color: '#5dff4a', width: 0 })
+  const rows = BOARD.rows
+  const pages = rows ? Math.max(1, Math.ceil(rows.length / LEADERBOARD.rows)) : 1
+  outlinedText(ctx, `GLOBAL TOP 50 • PAGE ${Math.min(BOARD.page, pages - 1) + 1}/${pages}`, w / 2, 120, { size: 22, color: '#5fe4ff', width: 0 })
+  if (!rows || !rows.length) {
+    outlinedText(ctx, rows ? 'No scores yet' : net.connected ? 'Loading...' : 'Server offline', w / 2, 360, { size: 34, color: '#e9eefc', width: 0 })
+  } else {
+    const start = Math.min(BOARD.page, pages - 1) * LEADERBOARD.rows
+    for (let i = 0; i < LEADERBOARD.rows; i++) {
+      const r = rows[start + i]
+      if (!r) break
       const y = 150 + i * 50
       ctx.fillStyle = i % 2 ? '#e9eefc' : '#ffffff'
       ctx.fillRect(40, y, w - 80, 44)
-      outlinedText(ctx, `${i + 1}`, 64, y + 23, { size: 24, color: '#ff8a1c', width: 0 })
-      outlinedText(ctx, n, 92, y + 23, { size: 26, color: '#1b1f3a', width: 0, align: 'left' })
-      outlinedText(ctx, v, w - 56, y + 23, { size: 24, color: '#1aa83a', width: 0, align: 'right' })
-    })
-    outlinedText(ctx, 'Current cash • refreshes every 60s', w / 2, 680, { size: 22, color: '#ffffff', width: 0 })
+      outlinedText(ctx, `${start + i + 1}`, 64, y + 23, { size: 24, color: '#ff8a1c', width: 0 })
+      outlinedText(ctx, r.name.length > 16 ? `${r.name.slice(0, 15)}...` : r.name, 92, y + 23, { size: 26, color: '#1b1f3a', width: 0, align: 'left' })
+      outlinedText(ctx, `$${shortNumber(r.value)}`, w - 56, y + 23, { size: 24, color: '#1aa83a', width: 0, align: 'right' })
+    }
+  }
+  outlinedText(ctx, BOARD.rank ? `Your rank: #${BOARD.rank}` : 'Current cash • refreshes every 60s', w / 2, 680, { size: 22, color: '#ffffff', width: 0 })
+}
+
+function repaintBoard() {
+  if (!BOARD.tex) return
+  const key = `${BOARD.page}|${net.connected}|${BOARD.rank}|${BOARD.rows ? JSON.stringify(BOARD.rows.slice(BOARD.page * LEADERBOARD.rows, (BOARD.page + 1) * LEADERBOARD.rows)) : ''}`
+  if (key === BOARD.shown) return
+  BOARD.shown = key
+  drawBoard(BOARD.tex.image.getContext('2d'), BOARD.w, BOARD.h)
+  BOARD.tex.needsUpdate = true
+}
+
+function leaderboardTexture() {
+  BOARD.tex = canvasTexture(BOARD.w, BOARD.h, drawBoard)
+  onLeaderboard((data) => {
+    BOARD.rows = data?.boards?.cash ?? []
+    BOARD.rank = data?.ranks?.cash ?? null
+    BOARD.page = 0
+    repaintBoard()
   })
+  let t = 0
+  onFrame((dt) => {
+    t += dt
+    if (t < LEADERBOARD.pageEvery) return
+    t = 0
+    if (BOARD.rows?.length > LEADERBOARD.rows) BOARD.page = (BOARD.page + 1) % Math.ceil(BOARD.rows.length / LEADERBOARD.rows)
+    repaintBoard() // also picks up the server going on/offline
+  })
+  return BOARD.tex
 }
 
 function leaderboard(root, x, z, yaw) {
@@ -399,6 +437,7 @@ export function buildMarket(scene) {
   stall(root, -30, -12, { a: '#ff2a3a', b: '#ffffff', sign: 'SELL!', signColor: '#ff2a3a', flag: true })
   glowDisc(root, -30, -7.4, 2.9, '#ff4a6a', 1.3)
   fuseMachine(root, -15.5, -11)
+  glowDisc(root, -15.5, -7.4, 2.9, '#3fb0ff', 1.3)
   for (const [x, z, s, f] of [[-61, -5.8, 1.5, false], [-59.8, -5.2, 1.1, false], [-21.5, -6.6, 1.2, false], [-9.5, -8.5, 1.3, false], [-18, -7.2, 0.9, false]]) {
     const p = pumpkin(s, f)
     p.position.set(x, 0, z)

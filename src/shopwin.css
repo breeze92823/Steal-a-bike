@@ -1,0 +1,278 @@
+/* The shared shop window shell and hold-E prompt (shopwin.js). Lives inside
+   .hud, so it sizes in --u design pixels (1 at 1920x990). */
+
+/* --- Prompt ------------------------------------------------------------------------- */
+.sw-prompt {
+  --p: 0;
+  position: absolute;
+  left: 50%;
+  top: 72%;
+  transform: translate(-50%, -100%) scale(0.6);
+  display: flex;
+  align-items: center;
+  gap: calc(var(--u) * 12);
+  padding: calc(var(--u) * 9) calc(var(--u) * 22) calc(var(--u) * 9) calc(var(--u) * 9);
+  min-height: 44px;
+  background: rgba(18, 18, 28, 0.62);
+  border-radius: calc(var(--u) * 14);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  touch-action: none;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.15s, visibility 0.15s;
+}
+.sw-prompt.show {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translate(-50%, -100%) scale(1);
+}
+.sw-prompt.holding {
+  transform: translate(-50%, -100%) scale(0.96);
+}
+/* The key, ringed by the hold progress. */
+.sw-prompt .key {
+  position: relative;
+  flex: none;
+  width: max(40px, calc(var(--u) * 70));
+  height: max(40px, calc(var(--u) * 70));
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: conic-gradient(#fff calc(var(--p) * 1turn), rgba(255, 255, 255, 0.22) 0);
+}
+.sw-prompt .key::before {
+  content: '';
+  position: absolute;
+  inset: max(4px, calc(var(--u) * 7));
+  border-radius: 50%;
+  background: rgba(18, 18, 28, 0.9);
+}
+.sw-prompt .k,
+.sw-prompt .hand {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 58%;
+  height: 58%;
+  border-radius: calc(var(--u) * 8);
+  background: #fff;
+  color: #1a1230;
+  font-size: max(16px, calc(var(--u) * 30));
+  line-height: 1;
+}
+.sw-prompt .hand {
+  display: none;
+  padding: 10%;
+  box-sizing: border-box;
+}
+.touch-ui .sw-prompt .k {
+  display: none;
+}
+.touch-ui .sw-prompt .hand {
+  display: grid;
+}
+.sw-prompt .txt {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--u) * 4);
+}
+.sw-prompt .obj {
+  font-size: max(11px, calc(var(--u) * 22));
+  font-weight: 600;
+  color: #d6d9e4;
+  white-space: nowrap;
+}
+.sw-prompt .act {
+  font-size: max(16px, calc(var(--u) * 34));
+}
+
+/* --- Shell -------------------------------------------------------------------------- */
+.sw-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1; /* under the rest of the HUD, which stays sharp */
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+  background: rgba(10, 20, 40, 0.08);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s, visibility 0.2s;
+}
+.sw-backdrop.show {
+  opacity: 1;
+  visibility: visible;
+}
+.sw-wrap {
+  --w: 1062;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--u) * 22);
+  width: min(calc(var(--u) * var(--w)), calc(100vw - 24px - var(--safe-l) - var(--safe-r)));
+  max-height: calc(100dvh - 16px);
+  transform: translate(-50%, -46%) scale(0.85);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.18s, transform 0.22s cubic-bezier(0.2, 1.4, 0.4, 1), visibility 0.18s;
+}
+.sw-wrap.show {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, -48%) scale(1);
+}
+.sw-wrap.show .sw-win {
+  pointer-events: auto;
+}
+.hud .hud-toast {
+  z-index: 6; /* "Not enough cash!" over the window */
+}
+/* A solo window (Bike Index) has the screen to itself. */
+.hud.sw-solo > :not(.sw-wrap):not(.sw-backdrop):not(.hud-toast) {
+  visibility: hidden;
+}
+
+/* Big blocky pixel title above a window (TRAILS, SELL!): gradient fill over a thick outline. */
+.sw-banner {
+  position: relative;
+  flex: none;
+  font-family: 'Silkscreen', 'Fredoka', monospace;
+  font-weight: 700;
+  font-size: calc(var(--u) * 86);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.sw-banner::before {
+  content: attr(data-t);
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+}
+.sw-banner.blue {
+  background-image: linear-gradient(180deg, #7ff0ff 0%, #22c4ff 45%, #1478ff 100%);
+}
+.sw-banner.blue::before {
+  color: #0b2a6a;
+  -webkit-text-stroke: calc(var(--u) * 14) #0b2a6a;
+  text-shadow: 0 calc(var(--u) * 6) 0 #0b2a6a;
+}
+.sw-banner.pink {
+  background-image: linear-gradient(180deg, #ffb4c4 0%, #ff5a78 50%, #e8203e 100%);
+}
+.sw-banner.pink::before {
+  color: #ffe6ea;
+  -webkit-text-stroke: calc(var(--u) * 12) #ffe6ea;
+  text-shadow: 0 calc(var(--u) * 5) 0 #b0102a;
+}
+/* Tucked: the window covers the lower half of the letters. */
+.sw-banner.tuck {
+  margin-bottom: calc(var(--u) * -44);
+}
+.sw-banner.tuck + .sw-win {
+  position: relative;
+}
+
+.sw-win {
+  width: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: #3b302a;
+  border: calc(var(--u) * 6) solid #24202a;
+  border-radius: calc(var(--u) * 6);
+  box-shadow: 0 calc(var(--u) * 10) calc(var(--u) * 30) rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+.sw-head {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--u) * 14);
+  height: calc(var(--u) * 80);
+  min-height: 48px;
+  padding: 0 calc(var(--u) * 8) 0 calc(var(--u) * 32);
+  /* Lego studs over the cyan bar. */
+  background:
+    radial-gradient(ellipse calc(var(--u) * 7) calc(var(--u) * 5) at 50% 50%, rgba(255, 255, 255, 0.2) 95%, transparent) 0 0 / calc(var(--u) * 26) calc(var(--u) * 20),
+    linear-gradient(180deg, #3cdcff 0%, #18b8ff 55%, #0a9eea 100%);
+  border-bottom: calc(var(--u) * 5) solid #0a5a9a;
+}
+.sw-head > .ot {
+  font-size: max(22px, calc(var(--u) * 52));
+}
+.hud .sw-x {
+  margin-left: auto;
+  flex: none;
+  width: max(44px, calc(var(--u) * 76));
+  height: max(40px, calc(var(--u) * 66));
+  display: grid;
+  place-items: center;
+  background: linear-gradient(180deg, #ff4a4a 0%, #e01c22 60%, #c0101a 100%);
+  border: calc(var(--u) * 4) solid #5a0a10;
+  box-shadow: inset 0 0 0 calc(var(--u) * 3) #ff8a8a;
+  border-radius: calc(var(--u) * 4);
+}
+.sw-x .ot {
+  font-size: max(22px, calc(var(--u) * 52));
+}
+.sw-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* --- Shared buttons ------------------------------------------------------------------- */
+.hud .sw-green,
+.hud .sw-grey {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--u) * 8);
+  border-radius: calc(var(--u) * 4);
+  font-size: max(17px, calc(var(--u) * 40));
+}
+.hud .sw-green {
+  background:
+    radial-gradient(ellipse calc(var(--u) * 6) calc(var(--u) * 4) at 50% 50%, rgba(255, 255, 255, 0.18) 95%, transparent) 0 0 / calc(var(--u) * 22) calc(var(--u) * 16),
+    linear-gradient(180deg, #8cff3a 0%, #5ee21e 55%, #3cc416 100%);
+  border: calc(var(--u) * 4) solid #1d6a0e;
+  box-shadow: inset 0 0 0 calc(var(--u) * 2) #c0ff8a;
+}
+.hud .sw-grey {
+  background: linear-gradient(180deg, #9aa3b4 0%, #747d90 100%);
+  border: calc(var(--u) * 4) solid #2e3442;
+  box-shadow: inset 0 0 0 calc(var(--u) * 2) #c8cfdc;
+}
+.hud .sw-green svg,
+.hud .sw-grey svg {
+  flex: none;
+  width: max(18px, calc(var(--u) * 38));
+  height: max(18px, calc(var(--u) * 38));
+}
+.hud .sw-no {
+  animation: sw-no 0.35s ease-out;
+}
+@keyframes sw-no {
+  20% { transform: translateX(-6%); }
+  45% { transform: translateX(5%); }
+  70% { transform: translateX(-3%); }
+  100% { transform: none; }
+}
+
+/* Short landscape phones: drop the big titles so the windows keep their room. */
+@media (max-height: 460px) {
+  .sw-banner {
+    display: none;
+  }
+}

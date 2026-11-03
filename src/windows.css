@@ -1,0 +1,598 @@
+/* The Sell Bikes, Halloween Shop, Daily Rewards and Bike Index windows
+   (sellshop.js, halloween.js, daily.js, bikeindex.js). The shell is shopwin.css. */
+
+.hud .bike-art {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* --- Sell Bikes ----------------------------------------------------------------------- */
+.sell {
+  --w: 972;
+}
+.sell .sw-win {
+  background: rgba(46, 34, 30, 0.38); /* the blurred world shows through */
+}
+.sell .sw-body {
+  display: flex;
+  flex-direction: column;
+  padding: calc(var(--u) * 10) calc(var(--u) * 16) calc(var(--u) * 14);
+}
+.sell-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-content: flex-start;
+  gap: calc(var(--u) * 14);
+  min-height: clamp(150px, calc(100dvh - 360px), calc(var(--u) * 420));
+}
+.hud .sell-tile {
+  position: relative;
+  width: max(120px, calc(var(--u) * 222));
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: calc(var(--u) * 10);
+  box-sizing: border-box;
+  background: rgba(24, 22, 26, 0.55);
+  border: calc(var(--u) * 4) solid rgba(255, 255, 255, 0.25);
+  touch-action: pan-y;
+}
+.hud .sell-tile.on {
+  border-color: #3ae03a;
+  box-shadow: 0 0 calc(var(--u) * 10) rgba(58, 224, 58, 0.45);
+}
+.sell-tile .nm {
+  position: absolute;
+  top: calc(var(--u) * 8);
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: max(11px, calc(var(--u) * 22));
+  opacity: 0.8;
+}
+.sell-tile .bike-art {
+  width: 90%;
+}
+.sell-tile .v {
+  font-size: max(20px, calc(var(--u) * 56));
+  color: #5aff2a;
+  margin-top: calc(var(--u) * -18);
+}
+.sell-empty {
+  align-self: center;
+  margin-top: calc(var(--u) * 80);
+  font-size: max(18px, calc(var(--u) * 40));
+  opacity: 0.85;
+}
+.sell-bar {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--u) * 14);
+  margin-top: calc(var(--u) * 14);
+  padding: calc(var(--u) * 14) calc(var(--u) * 16) calc(var(--u) * 14) calc(var(--u) * 28);
+  background: #2c2826;
+  border: calc(var(--u) * 5) solid #18141a;
+}
+.sell-bar .lbl,
+.sell-bar .tot {
+  font-size: max(18px, calc(var(--u) * 54));
+}
+.sell-bar .i-cash {
+  flex: none;
+  width: max(30px, calc(var(--u) * 84));
+}
+.hud .sell-go {
+  margin-left: auto;
+  width: max(96px, calc(var(--u) * 216));
+  height: max(44px, calc(var(--u) * 76));
+  font-size: max(20px, calc(var(--u) * 50));
+}
+.hud .sell-go.off {
+  filter: saturate(0.4) brightness(0.85);
+}
+
+/* --- Halloween Shop -------------------------------------------------------------------- */
+.hw .sw-win {
+  background:
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.025) 0 calc(var(--u) * 14), transparent calc(var(--u) * 14) calc(var(--u) * 28)),
+    #2a2236;
+}
+.hw .sw-body {
+  padding: calc(var(--u) * 14) calc(var(--u) * 44) calc(var(--u) * 16);
+}
+.hw-corn {
+  text-align: center;
+  color: #ffc62a;
+  font-size: max(15px, calc(var(--u) * 28));
+  text-transform: uppercase;
+  margin-bottom: calc(var(--u) * 14);
+}
+.hw-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: calc(var(--u) * 22) calc(var(--u) * 36);
+}
+.hw-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: calc(var(--u) * 14) calc(var(--u) * 16) calc(var(--u) * 12);
+  border: calc(var(--u) * 4) solid #241a2a;
+  border-radius: calc(var(--u) * 22);
+  background:
+    radial-gradient(ellipse calc(var(--u) * 9) calc(var(--u) * 6) at 50% 50%, rgba(255, 255, 255, 0.1) 95%, transparent) 0 0 / calc(var(--u) * 34) calc(var(--u) * 26),
+    var(--card);
+  box-shadow: inset 0 0 0 calc(var(--u) * 3) rgba(255, 255, 255, 0.25);
+}
+.hw-card.pink {
+  --card: linear-gradient(180deg, #ffa66e 0%, #ff86a0 55%, #ff6cb0 100%);
+}
+.hw-card.purple {
+  --card: linear-gradient(180deg, #9a64d8 0%, #7a44b8 100%);
+}
+.hw-card.green {
+  --card: linear-gradient(180deg, #46a882 0%, #2c7a5c 100%);
+}
+.hw-card .nm {
+  font-size: max(15px, calc(var(--u) * 32));
+}
+.hw-card .sub {
+  font-size: max(10px, calc(var(--u) * 19));
+  margin-top: calc(var(--u) * 6);
+}
+.hw-card.boost {
+  justify-content: center;
+  padding-top: calc(var(--u) * 22);
+}
+.hw-card.boost .nm {
+  font-size: max(20px, calc(var(--u) * 46));
+}
+.hw-card.boost .sub {
+  font-size: max(12px, calc(var(--u) * 26));
+  margin: calc(var(--u) * 10) 0 calc(var(--u) * 20);
+}
+.hw-card .pic {
+  width: min(100%, calc(var(--u) * 150));
+  margin: calc(var(--u) * 10) 0;
+}
+.hud .hw-buy {
+  width: min(100%, calc(var(--u) * 246));
+  height: max(44px, calc(var(--u) * 60));
+  font-size: max(17px, calc(var(--u) * 34));
+}
+
+/* --- Daily Rewards ---------------------------------------------------------------------- */
+.dr {
+  --w: 936;
+}
+.dr .sw-win {
+  overflow: visible; /* the calendar pokes out of the header */
+  background: #1a2234;
+}
+.dr .sw-head {
+  padding-left: calc(var(--u) * 116);
+  border-radius: calc(var(--u) * 4) calc(var(--u) * 4) 0 0;
+}
+.dr-cal {
+  position: absolute;
+  left: calc(var(--u) * 6);
+  bottom: calc(var(--u) * -8);
+  width: calc(var(--u) * 100);
+  min-width: 52px;
+  filter: drop-shadow(0 calc(var(--u) * 4) 0 rgba(0, 0, 0, 0.35));
+}
+.dr .sw-body {
+  padding: calc(var(--u) * 20) calc(var(--u) * 22) calc(var(--u) * 10);
+}
+.dr-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr) 1.55fr;
+  grid-template-rows: repeat(2, minmax(110px, calc(var(--u) * 168)));
+  gap: calc(var(--u) * 18);
+}
+.hud .dr-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(var(--u) * 10) calc(var(--u) * 8);
+  overflow: hidden;
+  background:
+    repeating-conic-gradient(from 0deg at 50% 58%, rgba(255, 255, 255, 0.07) 0 9deg, transparent 9deg 18deg),
+    radial-gradient(circle at 50% 58%, #3a4050, #1e222c 70%);
+  border: calc(var(--u) * 4) solid #10141e;
+  border-radius: calc(var(--u) * 4);
+}
+.hud .dr-tile.big {
+  grid-column: 4;
+  grid-row: 1 / span 2;
+  justify-content: flex-start;
+}
+.dr-tile .day {
+  font-size: max(13px, calc(var(--u) * 26));
+  color: #c8ccd4;
+}
+.dr-tile.next .day {
+  color: #fff;
+}
+.dr-tile.big .day {
+  font-size: max(22px, calc(var(--u) * 56));
+}
+.dr-tile .op {
+  position: absolute;
+  left: calc(var(--u) * 14);
+  top: calc(var(--u) * 40);
+  z-index: 2;
+  color: #ffa61a;
+  font-size: max(12px, calc(var(--u) * 26));
+  transform: rotate(-6deg);
+}
+.dr-tile.big .op {
+  top: calc(var(--u) * 80);
+  font-size: max(20px, calc(var(--u) * 52));
+}
+.dr-tile .pic {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: grid;
+  place-items: center;
+}
+.dr-tile.big .pic {
+  width: 100%;
+  flex: 1;
+}
+.dr-tile .pic svg {
+  width: 100%;
+  max-height: 100%;
+}
+.dr-tile .pic .i-cash {
+  width: 70%;
+}
+.dr-tile .what {
+  font-size: max(12px, calc(var(--u) * 26));
+}
+.dr-tile.big .what {
+  font-size: max(16px, calc(var(--u) * 36));
+  margin-bottom: calc(var(--u) * 26);
+}
+.hud .dr-check {
+  display: none;
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  width: 62%;
+  transform: translate(-50%, -50%) rotate(-8deg);
+}
+.hud .dr-tile.claimed .dr-check {
+  display: block;
+}
+.dr-tile.claimed .pic,
+.dr-tile.claimed .what,
+.dr-tile.claimed .op {
+  opacity: 0.5;
+}
+.hud .dr-tile.ready {
+  border-color: #ffd21a;
+  animation: dr-glow 1.2s ease-in-out infinite alternate;
+}
+@keyframes dr-glow {
+  from { box-shadow: 0 0 calc(var(--u) * 6) rgba(255, 210, 26, 0.5); }
+  to { box-shadow: 0 0 calc(var(--u) * 22) rgba(255, 210, 26, 0.95); }
+}
+.dr-foot {
+  text-align: center;
+  font-size: max(12px, calc(var(--u) * 24));
+  margin-top: calc(var(--u) * 8);
+}
+@media (max-width: 600px) {
+  .dr-grid {
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(2, 110px) 150px;
+  }
+  .hud .dr-tile.big {
+    grid-column: 1 / span 3;
+    grid-row: 3;
+  }
+  .dr-tile.big .pic {
+    width: 50%;
+  }
+}
+
+/* --- Bike Index -------------------------------------------------------------------------- */
+.ix {
+  --w: 1422;
+}
+.ix .sw-win {
+  background: #1b2535;
+}
+.ix .sw-head {
+  height: calc(var(--u) * 104);
+}
+.ix .sw-head > .ot {
+  font-size: max(24px, calc(var(--u) * 66));
+}
+.ix .sw-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) calc(var(--u) * 388);
+  gap: calc(var(--u) * 40);
+  padding: calc(var(--u) * 22) calc(var(--u) * 34) calc(var(--u) * 26);
+}
+.ix-left {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ix-list {
+  height: clamp(200px, calc(100dvh - 320px), calc(var(--u) * 568));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: #0e1626;
+  padding: calc(var(--u) * 20) calc(var(--u) * 36) 0 calc(var(--u) * 42);
+  scrollbar-width: thin;
+  scrollbar-color: #3a4a66 transparent;
+}
+.ix-world {
+  display: grid;
+  grid-template-columns: minmax(54px, calc(var(--u) * 166)) minmax(0, 1fr);
+  gap: calc(var(--u) * 26);
+  margin-bottom: calc(var(--u) * 40);
+}
+.ix-poster {
+  position: relative;
+  overflow: hidden;
+}
+.ix-poster .scene {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.ix-poster .nm {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(var(--u) * 26);
+  text-align: center;
+  white-space: normal;
+  font-size: max(12px, calc(var(--u) * 42));
+}
+.ix-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: calc(var(--u) * 18);
+}
+.hud .ix-tile {
+  aspect-ratio: 205 / 222;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(var(--u) * 10) calc(var(--u) * 8) calc(var(--u) * 6);
+  box-sizing: border-box;
+  background: var(--bg);
+  border: calc(var(--u) * 4) solid #22304a;
+  overflow: hidden;
+}
+.hud .ix-tile.waiting {
+  border-color: #8aff8a;
+}
+.hud .ix-tile.sel {
+  border-color: #ffffff;
+  box-shadow: 0 0 0 calc(var(--u) * 2) #ffffff;
+}
+.ix-tile .nm {
+  font-size: max(14px, calc(var(--u) * 48));
+  white-space: normal;
+  text-align: center;
+  line-height: 0.95;
+}
+.ix-tile .nm.long {
+  font-size: max(11px, calc(var(--u) * 28));
+}
+.ix-tile .bike-art {
+  flex: 1;
+  min-height: 0;
+  width: 78%;
+}
+.ix-tile.locked .bike-art,
+.ix-view.locked .bike-art {
+  filter: brightness(0);
+}
+.ix-tile .rr {
+  font-size: max(9px, calc(var(--u) * 24));
+}
+.ix-bar {
+  grid-column: 1 / -1;
+  position: relative;
+  height: max(24px, calc(var(--u) * 54));
+  display: grid;
+  place-items: center;
+  background: #556a1c;
+  border: calc(var(--u) * 4) solid #10182a;
+}
+.ix-bar .fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: linear-gradient(180deg, #9aff5a, #5ad81a);
+}
+.ix-bar .txt {
+  position: relative;
+  font-size: max(14px, calc(var(--u) * 44));
+}
+.ix-bar .bike-art {
+  position: absolute;
+  right: calc(var(--u) * 4);
+  bottom: calc(var(--u) * -4);
+  width: calc(var(--u) * 120);
+}
+.hud .ix-all {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-top: calc(var(--u) * 18);
+  height: max(44px, calc(var(--u) * 66));
+}
+.ix-all .book {
+  position: relative;
+  z-index: 2;
+  flex: none;
+  width: max(34px, calc(var(--u) * 74));
+  margin-right: calc(var(--u) * -6);
+}
+.ix-all .bar {
+  flex: 1;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  background: repeating-linear-gradient(135deg, #18e4ff 0 calc(var(--u) * 28), #52f0ff calc(var(--u) * 28) calc(var(--u) * 56));
+  border: calc(var(--u) * 4) solid #0a1626;
+}
+.ix-all .bar .ot {
+  font-size: max(18px, calc(var(--u) * 52));
+}
+.hud .ix-all.off .bar {
+  filter: saturate(0.3) brightness(0.8);
+}
+.ix-right {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--u) * 22);
+}
+.ix-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: calc(var(--u) * 18);
+  background: linear-gradient(180deg, #8c8c90 0%, #3a3a3e 70%, #2a2a2e 100%);
+  border: calc(var(--u) * 4) solid #3a4458;
+}
+.ix-view .bike-art {
+  width: 72%;
+}
+.ix-view .nm,
+.ix-view .rr,
+.ix-view .inc {
+  font-size: max(16px, calc(var(--u) * 44));
+  margin-top: calc(var(--u) * 8);
+}
+.ix-view .inc {
+  color: #5aff3a;
+}
+.ix-rewards {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: calc(var(--u) * 14) calc(var(--u) * 14) calc(var(--u) * 18);
+  background: #0e1626;
+  border: calc(var(--u) * 3) solid #20b040;
+}
+.ix-rewards .hd {
+  align-self: flex-start;
+  font-size: max(13px, calc(var(--u) * 28));
+}
+.ix-rewards .items {
+  display: flex;
+  gap: calc(var(--u) * 14);
+  margin: calc(var(--u) * 6) 0 calc(var(--u) * 14);
+}
+.ix-rewards .it {
+  width: max(52px, calc(var(--u) * 92));
+  aspect-ratio: 92 / 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #1a2436;
+  border: calc(var(--u) * 3) solid #2a3a52;
+}
+.ix-rewards .it svg {
+  width: 74%;
+}
+.ix-rewards .it .ot {
+  font-size: max(12px, calc(var(--u) * 26));
+}
+.hud .ix-claim {
+  width: min(100%, calc(var(--u) * 306));
+  height: max(44px, calc(var(--u) * 82));
+  font-size: max(22px, calc(var(--u) * 66));
+}
+/* Phones: the preview and rewards go under the list. */
+@media (max-width: 760px) {
+  .ix .sw-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ix-right {
+    flex-direction: row;
+  }
+  .ix-view,
+  .ix-rewards {
+    flex: 1;
+  }
+  .ix .sw-body {
+    padding: 10px;
+    gap: 10px;
+  }
+  .ix-list {
+    padding: 10px 8px 0;
+  }
+  .ix-world {
+    grid-template-columns: 46px minmax(0, 1fr);
+    gap: 8px;
+    margin-bottom: 18px;
+  }
+  .ix-poster .nm {
+    font-size: 10px;
+    top: 8px;
+    -webkit-text-stroke-width: 3px;
+  }
+  .ix-tiles {
+    gap: 6px;
+  }
+  .hud .ix-tile {
+    padding: 4px 2px 3px;
+  }
+  .ix-tile .nm,
+  .ix-tile .nm.long {
+    font-size: 11px;
+    -webkit-text-stroke-width: 3px;
+  }
+  .ix-tile .rr {
+    font-size: 8px;
+    -webkit-text-stroke-width: 2px;
+  }
+  .ix-bar .txt {
+    font-size: 12px;
+  }
+  .ix-bar .bike-art {
+    display: none;
+  }
+  .hud .ix-claim {
+    font-size: 18px;
+  }
+}
+
+/* --- Fuse Machine ------------------------------------------------------------------------ */
+.fz {
+  --w: 972;
+}
+.fz .sw-win {
+  background: rgba(34, 36, 44, 0.55);
+}
+.fz-list {
+  height: clamp(220px, calc(100dvh - 330px), calc(var(--u) * 540));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: calc(var(--u) * 14) calc(var(--u) * 40) calc(var(--u) * 14) calc(var(--u) * 38);
+  scrollbar-width: thin;
+  scrollbar-color: #3a4256 transparent;
+}
