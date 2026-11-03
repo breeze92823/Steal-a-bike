@@ -1,5 +1,5 @@
 import { ACESFilmicToneMapping, Clock, Group, PCFSoftShadowMap, PerspectiveCamera, Scene, SRGBColorSpace, WebGLRenderer } from 'three'
-import { CAMERA, graphicsPreset, RENDER, RIDE } from './config.js'
+import { CAMERA, graphicsPreset, LAYOUT, RENDER, RIDE, SPAWN } from './config.js'
 import * as bloxity from './bloxity.js'
 import { install as installInput, onKey, releaseInput } from './input.js'
 import { installTouch } from './touch.js'
@@ -21,7 +21,8 @@ import { createTraining } from './training.js'
 import { createChaseHud } from './chasehud.js'
 import { createHeist } from './heist.js'
 import { createBase } from './base.js'
-import { initNet, sendEmote, sendLoadout, sendPose, syncAvatar } from './net.js'
+import { initNet, sendBase, sendEmote, sendLoadout, sendPose, syncAvatar } from './net.js'
+import { createPlots } from './plots.js'
 import { createBubble } from './bubble.js'
 import { playEmote } from './avatar/emotes.js'
 import { createRemotePlayers } from './remotePlayers.js'
@@ -103,7 +104,8 @@ syncYawToPlayer()
 installAudio()
 // The zones north of the safe zone, built and shown as you approach them.
 const lane = createLane(scene, { lighting, hud, hub: [...lobby.roots, market, junction] })
-const training = createTraining({ scene, hud, camera, mill: lobby.treadmill })
+// Your treadmill: the one on your plot (plots.js moves you to the server's pick once connected).
+const training = createTraining({ scene, hud, camera, mill: { ...lobby.plots[LAYOUT.myPlot].treadmill } })
 lane.update(player.position, true)
 
 // --- Player avatar ----------------------------------------------------------
@@ -149,12 +151,32 @@ ride.add(myBike)
 // not the wheelie/knockdown pivots), and your base where you park it.
 const holder = new Group()
 playerGroup.add(holder)
-const base = createBase({ scene, hud, camera, holder, plotX: lobby.plotX })
+const base = createBase({ hud, camera, holder })
 
 // The game server (saves, the MOST CASH board, other players). Every saved window has registered
 // itself by now; the server's save is applied once the connection answers.
 const remotes = createRemotePlayers(scene)
 initNet({ hud })
+
+// Every plot is a player's base (plots.js): yours from your own state, everyone else's from the
+// roster. When the server gives you a plot, your base, treadmill and spawn point move there (and
+// so do you, if you haven't wandered off yet).
+const spawnDx = SPAWN.x - LAYOUT.plotCenters[LAYOUT.myPlot]
+const plots = createPlots(scene, lobby.plots, {
+  mine: () => ({ name: bloxity.displayName(), floors: base.floors, placed: base.placed, treadmill: training.level }),
+  onMine(plot) {
+    base.setPlot(plot)
+    training.setMill(plot.treadmill)
+    const atSpawn = Math.hypot(player.position.x - SPAWN.x, player.position.z - SPAWN.z) < 12
+    SPAWN.x = plot.cx + spawnDx // R and falls bring you back to your own base
+    if (atSpawn && !player.holding && !player.training) {
+      resetPlayer(SPAWN, player.facing)
+      syncYawToPlayer()
+    }
+  },
+})
+let sentBase = -1
+let sentLevel = -1
 
 // Stealing bikes from the guard posts and the chase home (the guards and bikes
 // registered themselves as their zones were built).
@@ -267,6 +289,13 @@ function frame() {
   sendPose({ x: round2(p.x), y: round2(p.y), z: round2(p.z), yaw: round2(player.facing), speed: round2(speed), state: onBike ? 1 : player.holding ? 2 : 0 })
   sendLoadout({ trail: equippedTrail()?.id ?? '', bike: player.holding ?? '' })
   remotes.update(dt, p)
+  if (base.version !== sentBase || training.level !== sentLevel) {
+    sentBase = base.version
+    sentLevel = training.level
+    sendBase({ floors: base.floors, placed: base.placed, treadmill: training.level })
+    plots.refresh()
+  }
+  plots.update(dt, p)
   bubble.update(dt)
 
   updateCamera(camera, dt)
@@ -298,5 +327,5 @@ if (import.meta.env.DEV) {
     resetPlayer({ x, y, z }, facing)
     syncYawToPlayer()
   }
-  window.__game = { player, scene, renderer, camera, postfx, bodies: bodyCount, toggleMode, teleport, lane, training, hud, heist, base, items, frame } // frame(): one loop step by hand (a hidden tab draws none)
+  window.__game = { player, scene, renderer, camera, postfx, bodies: bodyCount, toggleMode, teleport, lane, training, hud, heist, base, items, plots, frame } // frame(): one loop step by hand (a hidden tab draws none)
 }

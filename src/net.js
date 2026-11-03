@@ -187,7 +187,7 @@ function avatarJson() {
   }
   return ''
 }
-const presence = { pose: null, loadout: null }
+const presence = { pose: null, loadout: null, base: null }
 let poseKey = ''
 let poseAt = 0
 // { x, y, z, yaw, speed, state }: at most NET.poseHz a second, nothing while it stands still.
@@ -214,6 +214,15 @@ export function sendLoadout(loadout) {
 let emoteSeq = 0
 // The emote this player started: the number makes a repeat of it a change the others see.
 export const sendEmote = (id) => sendNet('emote', { emote: `${id}#${++emoteSeq % 1000}` })
+let baseKey = ''
+// { floors, placed: [names], treadmill }: what stands on your plot, for everyone to draw (plots.js).
+export function sendBase(base) {
+  presence.base = base
+  const key = JSON.stringify(base)
+  if (!net.connected || key === baseKey) return
+  baseKey = key
+  send('base', base)
+}
 let sentAvatar = ''
 // The Bloxity look changed (customizer, sign-in/out): send it if it differs.
 export function syncAvatar() {
@@ -336,8 +345,9 @@ async function connect() {
     sentPfp = getPfp()
     sentAvatar = avatarJson()
     loadoutKey = JSON.stringify(presence.loadout)
+    baseKey = JSON.stringify(presence.base)
     poseKey = ''
-    const options = { ...id, pfp: sentPfp, avatar: sentAvatar, pose: presence.pose, loadout: presence.loadout }
+    const options = { ...id, pfp: sentPfp, avatar: sentAvatar, pose: presence.pose, loadout: presence.loadout, base: presence.base }
     const { room, relay } = (await joinLaunchRoom(options)) ?? (await joinAnyRoom(options))
     retryIn = NET.retry
     attach(room)

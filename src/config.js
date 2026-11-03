@@ -26,7 +26,9 @@ export const LAYOUT = {
   // east) are pad / pad / path / pad, rows are pads; the treadmill sits at the
   // north end of the path.
   plotCenters: [-66.5, -44.5, -22.5, -0.5, 21.5, 43.5, 65.5],
-  plotOwners: [null, null, null, 'me', 'BikeBandit88', 'MotoMaverick', null], // placeholder neighbours until multiplayer
+  // Every plot is a player's base: the game server gives each player in the room one (plots.js);
+  // offline (no server yet) you get this one.
+  myPlot: 3,
   plotZ: 12, // north edge of every plot
   plotColumns: [4.5, 4.5, 3.5, 4.5], // widths, m
   plotRows: 4,
@@ -204,8 +206,19 @@ export const ITEMS = {
 // reads "You earn $X/12h Offline!" = income x offlineHours x offlineShare.
 export const BASE = {
   hold: { x: -0.78, z: 0.3, scale: 1.15, tagX: -0.78, tagY: 5.0, tagHeight: 1.5 }, // the walked bike in the player's frame (+Z forward, -X right) and its tag
-  slots: [[3, 1], [3, 2], [3, 3], [1, 0], [1, 1], [1, 2], [1, 3], [0, 0], [0, 1], [0, 2], [0, 3]],
-  capacity: 6, // bikes your plot holds, the Club Tourer included ("Upgrade Plot 6 > 8 Bikes")
+  // The floors of a base (plots.js draws them, base.js fills them): the ground and two steel
+  // decks over it, each bought at the Upgrade Base sign. y = where the bikes stand; slots =
+  // [column, row] pads in fill order (column 2 is the path; ground [3, 0] holds the Club Tourer);
+  // price = $ to build that floor. Up a deck by the ramps outside the plot (west to the first
+  // deck, east to the second). Keep `floors.length` = the backend's BASE_FLOORS_MAX.
+  floors: [
+    { y: 0.24, price: 0, slots: [[3, 1], [3, 2], [3, 3], [1, 0], [1, 1]] },
+    { y: 4.46, price: 50e3, slots: [[1, 0], [1, 1], [1, 2], [1, 3], [3, 0], [3, 1], [3, 2], [3, 3], [0, 0], [0, 1], [0, 2], [0, 3]] },
+    { y: 8.86, price: 5e6, slots: [[1, 0], [1, 1], [1, 2], [1, 3], [3, 0], [3, 1], [3, 2], [3, 3], [0, 0], [0, 1], [0, 2], [0, 3]] },
+  ],
+  deck: 4.4, // m between floors
+  ramp: { run: 10, width: 1.6, from: 1 }, // m along the plot's side, wide, its foot this far south of the plot's north edge
+  detailRange: 60, // m: other players' bike tags show this close
   margin: 0.6, // m outside the plot's pads that still counts as on it
   offlineHours: 12,
   offlineShare: 1,

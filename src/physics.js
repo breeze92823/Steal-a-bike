@@ -110,6 +110,11 @@ export function removeBody(body) {
   world.removeRigidBody(body)
 }
 
+// A fixed collider from addFixed that has to go again (a base's decks when its owner changes).
+export function removeCollider(collider) {
+  if (collider) world.removeCollider(collider, true)
+}
+
 // First fixed collider hit between two points, as a 0..1 fraction of the
 // segment (1 = clear). Crates, balls and the player never block it.
 const STATIC_ONLY = () => RAPIER.QueryFilterFlags.EXCLUDE_DYNAMIC | RAPIER.QueryFilterFlags.EXCLUDE_KINEMATIC | RAPIER.QueryFilterFlags.EXCLUDE_SENSORS

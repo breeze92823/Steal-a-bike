@@ -182,7 +182,7 @@ export function createTraining({ scene, hud, camera, mill }) {
   const aura = sparkles(scene, mill.x, beltTop, seatZ, { count: 22, radius: 1.1, height: 2.6, color: '#5fd8ff', size: 0.3, speed: 1.1, seed: 41 })
   aura.visible = false
 
-  const beltMat = mill.group.userData.belt.material
+  let beltMat = mill.group.userData.belt.material // your treadmill's: setMill swaps it
   const beltGlow = beltMat.emissiveIntensity
 
   // --- HUD bits ---
@@ -346,6 +346,23 @@ export function createTraining({ scene, hud, camera, mill }) {
   return {
     // For main.js: whether you are on the bike, the wheelie angle (rad, front up) and the pedalling speed.
     state: { active: false, wheelie: 0, pedal: 0 },
+    get level() {
+      return level
+    },
+    // Your plot changed (the game server gave you another one): train on its treadmill from now on.
+    // `next` is lobby.js plots[i].treadmill; the old one goes back to idle.
+    setMill(next) {
+      if (next === mill || next.group === mill.group) return
+      if (player.training) dismount()
+      beltMat.emissiveIntensity = beltGlow
+      mill.group.userData.beltSpeed = T.beltIdle
+      Object.assign(mill, next)
+      beltMat = mill.group.userData.belt.material
+      aura.position.set(mill.x, beltTop, seatZ)
+      mill.sign.setLines(upgradeText())
+      mill.rate.set(`+${shortNumber(rate())}/s`)
+      shownUpgrade = ''
+    },
     update(dt) {
       const s = this.state
       // Mount / dismount.

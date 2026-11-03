@@ -3,13 +3,13 @@ import { LAYOUT, PALETTE } from './config.js'
 import { bake, bakeStatic } from './bake.js'
 import { label, neon, put, solidBox } from './propkit.js'
 import { mulberry32 } from './textures.js'
-import { bikeTag, bicycle, canvasTexture, exclamation, ghost, liveLabel, meterBox, motorbike, outlinedText, plain, pumpkin, sbox, studMat, tube, voxelTree } from './kit.js'
-import { bob, onFrame, risingText, sparkles } from './fx.js'
+import { canvasTexture, exclamation, ghost, liveLabel, meterBox, outlinedText, plain, pumpkin, sbox, studMat, tube, voxelTree } from './kit.js'
+import { bob, onFrame } from './fx.js'
 
 // The plaza: lego ground, the east-west road with the junction stub north, the
-// row of bike plots south of the road (yours with its treadmill and upgrade
-// signs, two neighbours' two-deck garages with neon treadmills, unclaimed
-// plots), and the purple terraced walls round the edge with autumn trees,
+// row of bike plots south of the road (every one a player's base: treadmill, upgrade signs;
+// plots.js stands each owner's floors and bikes on it),
+// and the purple terraced walls round the edge with autumn trees,
 // ghosts and pumpkins. Static meshes are baked to a few draw calls per piece.
 const L = LAYOUT
 const P = PALETTE
@@ -115,7 +115,7 @@ function treadmill(root, x, z0, { frame = P.treadFrame, neonFrame = null } = {})
 }
 
 // Upgrade sign: a brick block with a slanted panel on top. `face` = yaw the panel faces.
-// Returns `setLines(lines)` to repaint the panel (prices after an upgrade).
+// Returns `setLines(lines)` to repaint the panel (prices after an upgrade) and its bobbing "!".
 function upgradeSign(root, x, z, face, lines) {
   const g = new Group()
   sbox(g, 2.6, 1.15, 1.1, P.brick, 0, 0, 0)
@@ -155,22 +155,7 @@ function upgradeSign(root, x, z, face, lines) {
     paint(tex.image.getContext('2d'), tex.image.width, tex.image.height)
     tex.needsUpdate = true
   }
-  return { group: g, setLines }
-}
-
-// A blocky rider sitting on a bike (the neighbours on their treadmills).
-function rider(skin = '#f2f2f2', shirt = '#ffffff', hair = '#f7f7ff') {
-  const g = new Group()
-  sbox(g, 0.5, 0.6, 0.32, shirt, 0, 1.15, 0, { studs: false })
-  sbox(g, 0.42, 0.42, 0.42, skin, 0, 1.78, 0, { studs: false })
-  sbox(g, 0.5, 0.22, 0.5, hair, -0.04, 2.1, 0, { studs: false })
-  for (const s of [-1, 1]) {
-    const arm = sbox(g, 0.18, 0.55, 0.18, shirt, 0.2, 1.25, s * 0.34, { studs: false })
-    arm.rotation.z = -1.1
-    const leg = sbox(g, 0.2, 0.6, 0.2, '#2a2a3a', 0.15, 0.6, s * 0.16, { studs: false })
-    leg.rotation.z = -0.9
-  }
-  return g
+  return { group: g, setLines, mark }
 }
 
 // --- Plots -------------------------------------------------------------------------------------
@@ -198,104 +183,6 @@ export function columnX(cx, c) {
   return x + L.plotColumns[c] / 2
 }
 export const rowZ = (r) => L.plotZ + r * L.plotRowDepth + L.plotRowDepth / 2
-
-const GARAGE_BIKES = [
-  ['Limited', 'Hellfire Dragster', '$5M/s', '#ff6a1a', '#222'],
-  ['Mythical', 'MX09', '$260K/s', '#f2f2f2', '#c21d2d'],
-  ['Insane', 'Super Dook', '$130K/s', '#ffb21a', '#1b1b22'],
-  ['Insane', 'M1100RR', '$700K/s', '#2b5cff', '#f2f2f2'],
-  ['Fuse', 'Quantum Reactor', '$65M/s', '#1ad6ff', '#141a33'],
-  ['Limited', 'Venom Widow', '$100M/s', '#9b39ff', '#1aff6a'],
-  ['Legendary', 'Club Racer', '$6K/s', '#e43b3b', '#222'],
-  ['Epic', 'Grum', '$3.4K/s', '#ffd21a', '#333'],
-  ['Legendary', 'Fat Boi', '$32.5K/s', '#ff8a1a', '#2a2a2a'],
-  ['Insane', 'Hayabusa', '$140K/s', '#f5f5f5', '#2b5cff'],
-  ['Epic', 'Canopy Scout', '$735/s', '#3cd23c', '#1b1b22'],
-  ['Legendary', 'Glacier Runner', '$12.8K/s', '#9fe8ff', '#20324a'],
-  ['Epic', 'Prism Coupe', '$161K/s', '#c44bff', '#ffffff'],
-  ['Insane', 'Nebula Striker', '$129.5K/s', '#ffcf2a', '#1e2240'],
-  ['Rare', 'YZ260F', '$567/s', '#2a6dff', '#f2f2f2'],
-  ['Legendary', 'Gold Wing', '$95K/s', '#ffd700', '#5a3a10'],
-  ['Epic', 'Spectrum Rally', '$24K/s', '#ff3c8a', '#2ad0ff'],
-  ['Mythical', 'Furnace Titan', '$40.3K/s', '#ff3b1a', '#1a1a1a'],
-]
-
-// A neighbour's two-deck garage over their plot, every level full of bikes.
-function garage(root, sprites, cx, seed) {
-  const rand = mulberry32(seed)
-  const g = new Group()
-  const w = plotWidth()
-  const depth = L.plotRows * L.plotRowDepth
-  const zc = L.plotZ + depth / 2
-  const steel = plain(P.steel, { roughness: 0.5, metalness: 0.3 })
-  const levels = [4.4, 8.8]
-  for (const px of [-w / 2 + 0.3, 0, w / 2 - 0.3]) {
-    for (const pz of [-depth / 2 + 0.3, 0, depth / 2 - 0.3]) {
-      put(g, new BoxGeometry(0.45, levels[1], 0.45), steel, cx + px, levels[1] / 2, zc + pz)
-      solidBox(0.23, levels[1] / 2, 0.23, cx + px, levels[1] / 2, zc + pz)
-    }
-  }
-  const yellow = neon('#ffe11a', 2.4)
-  for (const y of levels) {
-    put(g, new BoxGeometry(w + 0.4, 0.35, depth + 0.4), steel, cx, y - 0.18, zc)
-    // Deck floor: pads either side of a light path, like the plot below.
-    sbox(g, w, 0.06, depth, P.pad, cx, y, zc, { shadows: false })
-    sbox(g, L.plotColumns[2], 0.07, depth, P.path, columnX(cx, 2), y, zc, { shadows: false })
-    solidBox(w / 2, 0.2, depth / 2, cx, y - 0.1, zc)
-    // Railing: beams along the edges, neon yellow along the top.
-    for (const s of [-1, 1]) {
-      put(g, new BoxGeometry(w, 0.12, 0.12), steel, cx, y + 0.9, zc + s * depth / 2)
-      put(g, new BoxGeometry(0.12, 0.12, depth), steel, cx + s * w / 2, y + 0.9, zc)
-    }
-    put(g, new BoxGeometry(w + 0.2, 0.1, 0.1), yellow, cx, y + 1.0, zc - depth / 2 - 0.05, false)
-    put(g, new BoxGeometry(0.1, 0.1, depth), yellow, cx - w / 2 - 0.05, y + 1.0, zc, false)
-    put(g, new BoxGeometry(0.1, 0.1, depth), yellow, cx + w / 2 + 0.05, y + 1.0, zc, false)
-  }
-  // Ramp up the west side.
-  const ramp = put(g, new BoxGeometry(1.6, 0.25, 10), steel, cx - w / 2 + 1.2, 2.2, zc + 2)
-  ramp.rotation.x = Math.atan2(4.4, 10)
-  // Bikes: two rows on the ground and on each deck, skipping the path column.
-  let k = Math.floor(rand() * GARAGE_BIKES.length)
-  for (const y of [0.24, ...levels.map((v) => v + 0.06)]) {
-    for (const c of [0, 1, 3]) {
-      for (const r of [0, 2]) {
-        const spec = GARAGE_BIKES[k++ % GARAGE_BIKES.length]
-        const bike = motorbike(spec[3], spec[4])
-        const bx = columnX(cx, c)
-        const bz = rowZ(r) + (rand() - 0.5) * 1.2
-        bike.position.set(bx, y, bz)
-        bike.rotation.y = Math.PI / 2 + (rand() - 0.5) * 0.5 // nose north
-        g.add(bike)
-        const tag = bikeTag(spec[0], spec[1], spec[2], 0.95)
-        tag.position.set(bx, y + 2.1, bz)
-        sprites.add(tag)
-      }
-    }
-  }
-  root.add(bake(g, true))
-}
-
-// Neon treadmill in front of a neighbour's plot, with their bike, rider and name.
-function neighbourTreadmill(root, sprites, cx, name, income, frame, glow, bikeColor, accent) {
-  const x = columnX(cx, 2)
-  treadmill(root, x, L.treadmillZ, { frame, neonFrame: glow })
-  const bike = motorbike(bikeColor, accent, '#7ff6ff')
-  bike.position.set(x, 0.32, L.treadmillZ + 2.4)
-  bike.rotation.y = Math.PI / 2
-  root.add(bike)
-  const r = rider()
-  r.position.set(x, 0.32, L.treadmillZ + 2.4)
-  r.rotation.y = Math.PI / 2
-  root.add(r)
-  sparkles(root, x, 0.4, L.treadmillZ + 2.3, { count: 26, radius: 1.3, height: 2.8, color: glow, size: 0.32, speed: 0.9, seed: cx | 0 })
-  const tag = label(name, 0.6, { color: '#e8e8f0', outline: '#30304a', outlineWidth: 8 })
-  tag.position.set(x, 3.3, L.treadmillZ + 2.4)
-  sprites.add(tag)
-  const inc = label(income, 1.2, { color: '#ffffff', outline: '#1b2f6a' })
-  inc.position.set(x + 1.6, 2.6, L.treadmillZ + 0.6)
-  sprites.add(inc)
-  bob(inc, 0.08, 2, cx)
-}
 
 // --- Walls --------------------------------------------------------------------------------------
 export const PURPLE_WALL = { main: P.wall, alt: P.wallAlt, panel: P.wallPanel, top: P.wallTop, ledge: P.ledge, leaves: P.leavesOrange, windows: true }
@@ -419,50 +306,33 @@ export function buildLobby(scene) {
   const line = plain(P.roadLine, { roughness: 0.5 })
   for (let x = L.minX + 2; x < L.maxX - 2; x += 6) put(flat, new BoxGeometry(2.6, 0.02, 0.22), line, x, 0.05, L.road.z, false)
 
-  // Plots.
-  L.plotCenters.forEach((cx, i) => {
+  // Plots: every one is a player's base (plots.js stands the owner's floors and bikes on it), each
+  // with its treadmill, the treadmill's rate, the Upgrade Treadmill sign and the Upgrade Base sign.
+  const plots = L.plotCenters.map((cx, i) => {
     plotGeometry(flat, cx)
-    if (!L.plotOwners[i]) {
-      const tag = label('Unclaimed', 1.0, { color: '#ffffff', outline: '#2a2244' })
-      tag.position.set(cx, 2.4, L.plotZ + 6)
-      sprites.add(tag)
+    const tx = columnX(cx, 2)
+    const mill = treadmill(root, tx, L.treadmillZ)
+    const rate = liveLabel('+1/s', 1.05, { color: '#ffffff', outline: '#1b2f6a' })
+    rate.sprite.position.set(tx - 1.9, 2.4, L.treadmillZ + 0.6)
+    sprites.add(rate.sprite)
+    bob(rate.sprite, 0.08, 2, i)
+    const signX = tx + 3.1
+    const signZ = L.treadmillZ + 2.0
+    const sign = upgradeSign(root, signX, signZ, -Math.PI / 2 + 0.3, ['Upgrade Treadmill', 'Lv 1 > 2', '$600', '◎ 11'])
+    const bx = columnX(cx, 0) + 0.6
+    const bz = L.plotZ - 1.3
+    const base = upgradeSign(root, bx, bz, Math.PI + 0.2, ['Upgrade Base', 'Floor 1 > 2', '$50K'])
+    return {
+      cx,
+      // For training.js (whoever owns it): belt centre x, console end z0, length, the group (belt
+      // speed), the floating rate label and the upgrade sign.
+      treadmill: { x: tx, z0: L.treadmillZ, len: 4.6, group: mill, rate, sign: { x: signX, z: signZ, setLines: sign.setLines, mark: sign.mark }, sprites },
+      baseSign: { x: bx, z: bz, setLines: base.setLines, mark: base.mark },
     }
   })
   const flatBaked = bake(flat, false)
   flatBaked.traverse((o) => (o.receiveShadow = true))
   root.add(flatBaked)
-
-  // Your plot: treadmill, upgrade signs, your first bike.
-  const me = L.plotCenters[L.plotOwners.indexOf('me')]
-  const tx = columnX(me, 2)
-  const mill = treadmill(root, tx, L.treadmillZ)
-  const rate = liveLabel('+1/s', 1.05, { color: '#ffffff', outline: '#1b2f6a' })
-  rate.sprite.position.set(tx - 1.9, 2.4, L.treadmillZ + 0.6)
-  sprites.add(rate.sprite)
-  bob(rate.sprite, 0.08, 2)
-  const signX = tx + 3.1
-  const signZ = L.treadmillZ + 2.0
-  const sign = upgradeSign(root, signX, signZ, -Math.PI / 2 + 0.3, ['Upgrade Treadmill', 'Lv 1 > 2', '$600', '◎ 11'])
-  upgradeSign(root, columnX(me, 3) - 0.6, L.plotZ - 1.3, Math.PI - 0.2, ['Upgrade Plot', '6 > 8 Bikes', '$1K'])
-  const bx = columnX(me, 3)
-  const bz = rowZ(0) + 0.5
-  const club = bicycle()
-  club.position.set(bx, 0.24, bz)
-  club.rotation.y = Math.PI * 0.75
-  root.add(club)
-  const clubTag = bikeTag('Common', 'Club Tourer', '$8/s', 1.25)
-  clubTag.position.set(bx, 2.9, bz)
-  sprites.add(clubTag)
-  risingText(sprites, bx, 1.6, bz, '💵 +$8', { every: 1, rise: 1.0, height: 0.7, opts: { color: '#5dff4a', outline: '#0d3a10', outlineWidth: 10 } })
-
-  // Neighbours: garages full of bikes, neon treadmills out front.
-  const [navName, jepName] = L.plotOwners.filter((o) => o && o !== 'me')
-  const nav = L.plotCenters[L.plotOwners.indexOf(navName)]
-  const jep = L.plotCenters[L.plotOwners.indexOf(jepName)]
-  garage(root, sprites, nav, 11)
-  garage(root, sprites, jep, 29)
-  neighbourTreadmill(root, sprites, nav, navName, '+6K/s', '#8a3cff', '#5ff4ff', '#f2f2f2', '#2ad0ff')
-  neighbourTreadmill(root, sprites, jep, jepName, '+2.1K/s', '#2a7cff', '#3fe6ff', '#1a1a22', '#e0262b')
 
   // Walls: south, west, east all the way; north either side of the valley
   // (brown cliff next to it, purple beyond).
@@ -495,11 +365,5 @@ export function buildLobby(scene) {
     root.add(p)
   }
   bakeStatic(root)
-  return {
-    plotX: me,
-    roots: [root, sprites],
-    // Your treadmill for training.js: belt centre x, console end z0, length, the
-    // group (belt speed), the floating rate label and the upgrade sign.
-    treadmill: { x: tx, z0: L.treadmillZ, len: 4.6, group: mill, rate, sign: { x: signX, z: signZ, setLines: sign.setLines }, sprites },
-  }
+  return { roots: [root, sprites], plots }
 }
