@@ -52,7 +52,7 @@ class PlayerAnimator {
     this.root.position.y = 0
   }
 
-  // input: { grounded, speed, verticalVelocity, turn (-1..1) }
+  // input: { grounded, speed, verticalVelocity, turn (-1..1), riding, seatLift }
   update(dt, input) {
     if (!(dt > 0)) return
     this.stateTime += dt
@@ -64,6 +64,11 @@ class PlayerAnimator {
   }
 
   resolveState(dt, input) {
+    if (input.riding) {
+      this.airTime = 0
+      this.setState('ride', ANIM.ride.transition)
+      return
+    }
     if (!input.grounded) {
       // Ignore the few frames of a step down a ledge; only a real drop is airborne.
       this.airTime += dt
@@ -116,6 +121,20 @@ class PlayerAnimator {
         this.scratch.applyDefinition(ANIM.airborne.rise)
         t.lerpBetween(t, this.scratch, clamp(0.5 + rising * 0.5, 0, 1))
         t.bobY = 0
+        break
+      }
+      case 'ride': {
+        // Pedals turn with distance travelled; the root sits up on the saddle.
+        const R = ANIM.ride
+        this.phase = (this.phase + (input.speed / R.pedalDistance) * TAU * dt) % TAU
+        t.applyDefinition(R.pose)
+        const s = Math.sin(this.phase)
+        const c = Math.cos(this.phase)
+        t.add('LegL1', s * R.pedalHip)
+        t.add('LegR1', -s * R.pedalHip)
+        t.add('LegL2', c * R.pedalKnee)
+        t.add('LegR2', -c * R.pedalKnee)
+        t.bobY = input.seatLift ?? 0
         break
       }
       case 'landing': {

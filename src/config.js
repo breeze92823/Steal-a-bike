@@ -1,59 +1,201 @@
 // Every tunable constant lives here; the rest of src/ holds no theme values.
 
 // --- Identity -------------------------------------------------------------
-export const GAME_SLUG = 'boat-race-with-99-engine' // slug registered on bloxity.io
-export const GAME_TITLE = 'Boat Race with 99 Engine'
+export const GAME_SLUG = 'steal-a-bike' // slug registered on bloxity.io
+export const GAME_TITLE = 'Steal a Bike'
 
 // Forces the Bloxity SDK and avatar CDN to be treated as unavailable (see .env.example).
 export const DEV_MODE = import.meta.env.VITE_DEV_MODE === 'true'
-// Dev server only (never in a build): the VIP portal ignores its world requirement (worlds.js).
-export const DEV_WORLDS = import.meta.env.DEV && import.meta.env.VITE_DEV_WORLDS === 'true'
-
-// --- Server (net.js) -----------------------------------------------------------
-// The Colyseus server (../Boat-race-with-99-engine-backend) holds the only save: nothing is kept
-// in the browser. Deployed builds (prod and the dev channel) always go through the Bloxity
-// matchmaker (Legion.SDK.net.resolveEndpoint): a fixed socket URL would pin everyone to one pod.
-// Only the local dev server (`npm run dev`) connects straight to a URL.
-export const SERVER_URL = import.meta.env.DEV ? import.meta.env.VITE_SERVER_URL_DEV || 'ws://localhost:2567' : ''
-export const NET = {
-  saveEvery: 5, // s: progress is sent at most this often (and when the tab hides or closes)
-  retry: 2, // s before the first reconnect; doubles after each failed resolve/join...
-  retryMax: 30, // ...up to this (the matchmaker can hold a cold start for ~45 s)
-  rejoin: 1, // s before resolving again after the room closed (e.g. its pod is being replaced)
-  raceEvery: 0.25, // s: this player's race distance is relayed to the others at most this often
-  // Presence (remotePlayers.js): this player's pose goes out at most `poseHz` times a second
-  // (skipped while it stands still); remote players ease toward their last pose (plus
-  // speed x heading for the time since it came: dead reckoning) at `remoteLerp` 1/s. The nearest
-  // `maxRemotes` (fewer on touch) are drawn within `remoteFade` m (racers further down the lane
-  // within `raceFade`); pets, partner and trail only within `detailRange` m.
-  poseHz: 10,
-  remoteLerp: 10,
-  predictMax: 0.4, // s of dead reckoning at most (a stalled sender stops instead of drifting off)
-  remoteFade: 220,
-  raceFade: 600,
-  maxRemotes: 20,
-  maxRemotesTouch: 10,
-  detailRange: 90,
-}
 
 // --- World (metres: +X east, +Z south, +Y up) -------------------------------
 export const GROUND_Y = 0
-// The lobby beach (world.js): one convex sand slab. The shoreline sweeps from
-// the start gate (front, -Z) back toward +Z on both wings, so the side barriers
-// funnel toward the gate like the reference shot.
-export const BEACH = {
-  front: -46, // z of the shoreline at the start gate
-  back: 90, // z of the back edge
-  halfWidth: 75, // x extent of the wings
-  wingZ: 24, // z of the shoreline at the far left/right ends
-  gateEdge: 21.5, // half-width of the straight shoreline in front of the gate
-  depth: 4, // slab thickness above the sea floor
-  tile: 18, // m per sand texture tile
-  fenceHeight: 3, // invisible wall around the sand so nobody drives into the sea
+// The lobby (lobby.js, market.js, valley.js): one flat lego plaza walled in by
+// purple terraces. An east-west road splits it: the bike plots on the south side,
+// the shops on the north side, and in the middle a short road north through the
+// SAFE ZONE line into the grass valley between brown cliffs.
+export const LAYOUT = {
+  minX: -80, maxX: 80, // inner faces of the west / east walls
+  southZ: 42, // inner face of the south wall
+  northZ: -18, // inner face of the north wall (either side of the valley)
+  road: { z: 0, halfWidth: 4, curb: 0.4 }, // E-W road, orange curb strip on each edge
+  junction: { halfWidth: 6, northZ: -13 }, // the stub of road north to the safe zone
+  safeZoneZ: -16, // the red line where the grass starts
+  valley: { halfWidth: 26, cliffHeight: 26 }, // the lane north of the safe zone (zones 1, 2, ...)
+  wallHeight: 24,
+  // Plots south of the road: centre x of each, west to east. Columns (west to
+  // east) are pad / pad / path / pad, rows are pads; the treadmill sits at the
+  // north end of the path.
+  plotCenters: [-66.5, -44.5, -22.5, -0.5, 21.5, 43.5, 65.5],
+  plotOwners: [null, null, null, 'me', 'BikeBandit88', 'MotoMaverick', null], // placeholder neighbours until multiplayer
+  plotZ: 12, // north edge of every plot
+  plotColumns: [4.5, 4.5, 3.5, 4.5], // widths, m
+  plotRows: 4,
+  plotRowDepth: 4.5,
+  treadmillZ: 5.2, // north end (console) of each treadmill
+  stud: 2, // m per stud texture tile (6 studs)
 }
-export const WATER = { level: -0.6, size: 1400, color: '#12a9e6', shallow: '#7ff0ff' }
-export const SPAWN = { x: 0, y: 0.05, z: 8 }
-export const SPAWN_FACING = Math.PI // yaw the character faces on spawn (PI = toward -Z, the start gate)
+// The north lane (valley.js + zone1..4.js): zones one after another from the
+// SAFE ZONE line, each with its own floor height and a guard post. endZ = the
+// zone's north edge, y = its floor, post = [x, z] of the post's centre,
+// recommended = what the post's sign says.
+export const LANE = {
+  zone1: { endZ: -55, y: 0, post: [20.5, -31], portal: [-19, -46] }, // grass; Halloween portal while the event is open
+  zone2: { endZ: -88, y: 0.7, post: [-19, -80], recommended: '600' }, // raised grass plateau
+  zone3: { endZ: -129, y: 0, post: [15, -112], recommended: '4K' }, // sand, cacti, yellow-topped cliffs
+  zone4: { endZ: -168, y: 0.25, post: [-8, -160], recommended: '20K' }, // snow basin walled in by ice
+  gate: { halfWidth: 15, height: 15, depth: 12, archRise: 7 }, // ice wall across zone 4's north end, arch over the gap
+  endZ: -232, // temporary end of the lane past the gate until zone 5 is built
+}
+// Zones 5..44 (zones.js builds them from these themes, lane.js streams them in
+// as you approach). Each theme: floor + patch colours, cliff colours (`wall`,
+// a terraceWall theme), decor recipes [name, count, where, opts] (where =
+// 'edge' by the cliffs, 'scatter' over the floor, 'sky' overhead, 'far' out
+// beyond the cliffs, 'center' down the middle; names are DECOR builders in
+// decor.js), a `hero` set piece, weather particles, drifting motes, a lighting
+// `mood` (over the day sky; null = plain day) and an ambience `sound`
+// (audio.js BEDS). Further from the hub = stranger, more glow, more particles.
+export const MOODS = {
+  dusk: { zenith: '#3a3a8a', horizon: '#ff9a6a', sunColor: '#ffb07a', sunIntensity: 1.6, hemiSky: '#ffc8a0', hemiGround: '#6a4a5a', hemiIntensity: 0.8, exposure: 1.0 },
+  sunset: { zenith: '#5a3a9a', horizon: '#ffb84a', sunColor: '#ffcf80', sunIntensity: 2.0, hemiSky: '#ffd8a0', hemiGround: '#a06a3a', hemiIntensity: 0.9 },
+  golden: { zenith: '#ffb84a', horizon: '#ffe8a8', sunColor: '#ffe0a0', sunIntensity: 1.7, hemiSky: '#ffe8b8', hemiGround: '#a07830', hemiIntensity: 0.75, envIntensity: 0.4, exposure: 0.85 },
+  mist: { zenith: '#7a8a9a', horizon: '#c8d0d8', sunColor: '#e8eef4', sunIntensity: 1.4, hemiSky: '#d8e0e8', hemiGround: '#6a7a6a', fogNear: 30, fogFar: 180 },
+  swamp: { zenith: '#3a5a4a', horizon: '#9ab89a', sunColor: '#d8f0b0', sunIntensity: 1.2, hemiSky: '#b8d8a8', hemiGround: '#3a4a2a', fogNear: 25, fogFar: 160 },
+  underwater: { zenith: '#0a4a8a', horizon: '#2ab0d8', sunColor: '#9fe8ff', sunIntensity: 1.3, hemiSky: '#6ad0ff', hemiGround: '#0a3a5a', hemiIntensity: 1.1, fogNear: 30, fogFar: 200 },
+  abyss: { zenith: '#020a1a', horizon: '#0a2a4a', sunColor: '#4a8aff', sunIntensity: 0.5, hemiSky: '#2a5aaa', hemiGround: '#020a14', hemiIntensity: 0.6, envIntensity: 0.25, exposure: 1.2, stars: 0.5, fogNear: 20, fogFar: 150 },
+  cave: { zenith: '#1a1030', horizon: '#3a2a5a', sunColor: '#c8a0ff', sunIntensity: 0.9, hemiSky: '#8a6ac8', hemiGround: '#1a1024', hemiIntensity: 0.7, envIntensity: 0.3, exposure: 1.15, fogNear: 40, fogFar: 220 },
+  lava: { zenith: '#3a0a0a', horizon: '#ff5a1a', sunColor: '#ff8a4a', sunIntensity: 1.6, hemiSky: '#ff8a5a', hemiGround: '#3a0a0a', hemiIntensity: 0.8, exposure: 1.05, fogNear: 40, fogFar: 260 },
+  blizzard: { zenith: '#9ab0c8', horizon: '#e0ecf4', sunColor: '#ffffff', sunIntensity: 1.5, hemiSky: '#e8f2ff', hemiGround: '#8aa0b8', fogNear: 20, fogFar: 140 },
+  aurora: { zenith: '#04102a', horizon: '#1a5a6a', sunColor: '#8affd8', sunIntensity: 0.6, hemiSky: '#4ac8b0', hemiGround: '#0a1a2a', hemiIntensity: 0.6, envIntensity: 0.3, exposure: 1.2, stars: 1 },
+  ice: { zenith: '#4a9ad8', horizon: '#c8f0ff', sunColor: '#e8f8ff', sunIntensity: 2.2, hemiSky: '#d8f4ff', hemiGround: '#6aa0c8' },
+  spooky: { zenith: '#0a0a1a', horizon: '#4a3a6a', sunColor: '#a8b8ff', sunIntensity: 0.6, hemiSky: '#6a5a9a', hemiGround: '#1a1420', hemiIntensity: 0.6, envIntensity: 0.25, exposure: 1.2, stars: 0.8, fogNear: 30, fogFar: 200 },
+  witch: { zenith: '#1a0a2a', horizon: '#5a2a7a', sunColor: '#b88aff', sunIntensity: 0.8, hemiSky: '#8a5ac8', hemiGround: '#1a0a1a', hemiIntensity: 0.7, exposure: 1.15, stars: 0.6, fogNear: 30, fogFar: 200 },
+  candy: { zenith: '#ff8ad8', horizon: '#ffe0f4', sunColor: '#fff0f8', sunIntensity: 2.2, hemiSky: '#ffe0f0', hemiGround: '#d8a0c8' },
+  neon: { zenith: '#05051a', horizon: '#3a1a5a', sunColor: '#c8a0ff', sunIntensity: 0.6, hemiSky: '#6a4aaa', hemiGround: '#100820', hemiIntensity: 0.7, envIntensity: 0.35, exposure: 1.2, stars: 0.4, fogNear: 50, fogFar: 260 },
+  cyber: { zenith: '#000814', horizon: '#003a5a', sunColor: '#3ff0ff', sunIntensity: 0.6, hemiSky: '#2a8aaa', hemiGround: '#000a10', hemiIntensity: 0.6, envIntensity: 0.3, exposure: 1.2, stars: 0.6 },
+  smog: { zenith: '#6a6a5a', horizon: '#b8a888', sunColor: '#ffd8a0', sunIntensity: 1.5, hemiSky: '#c8b898', hemiGround: '#5a4a3a', fogNear: 40, fogFar: 240 },
+  heaven: { zenith: '#7ac8ff', horizon: '#fff4dc', sunColor: '#fff0c8', sunIntensity: 1.8, hemiSky: '#f4f8ff', hemiGround: '#c8b890', hemiIntensity: 0.8, envIntensity: 0.4, exposure: 0.82 },
+  storm: { zenith: '#2a3040', horizon: '#6a7484', sunColor: '#c8d0e0', sunIntensity: 0.9, hemiSky: '#8a94a8', hemiGround: '#2a2a30', hemiIntensity: 0.7, fogNear: 30, fogFar: 200 },
+  jade: { zenith: '#2a8a6a', horizon: '#c8f0d8', sunColor: '#fff0c0', sunIntensity: 2.0, hemiSky: '#d8ffe8', hemiGround: '#4a8a5a' },
+  dragon: { zenith: '#2a0a1a', horizon: '#c84a2a', sunColor: '#ffb04a', sunIntensity: 1.4, hemiSky: '#ff9a6a', hemiGround: '#2a0a0a', hemiIntensity: 0.8, exposure: 1.1 },
+  celestial: { zenith: '#0a0a3a', horizon: '#6a4ac8', sunColor: '#d8c8ff', sunIntensity: 1.0, hemiSky: '#a08aff', hemiGround: '#1a1040', hemiIntensity: 0.8, envIntensity: 0.4, exposure: 1.15, stars: 1 },
+  space: { zenith: '#000004', horizon: '#1a0a3a', sunColor: '#ffffff', sunIntensity: 1.6, hemiSky: '#6a5aaa', hemiGround: '#05030a', hemiIntensity: 0.6, envIntensity: 0.3, exposure: 1.15, stars: 1, fogNear: 300, fogFar: 1100 },
+  moon: { zenith: '#000004', horizon: '#14141e', sunColor: '#ffffff', sunIntensity: 2.2, hemiSky: '#8a8a9a', hemiGround: '#1a1a1e', hemiIntensity: 0.5, envIntensity: 0.3, stars: 1, fogNear: 300, fogFar: 1100 },
+  rainbow: { zenith: '#6a5aff', horizon: '#ffd8f8', sunColor: '#ffffff', sunIntensity: 2.2, hemiSky: '#fff0ff', hemiGround: '#a0c8ff', exposure: 1.0, stars: 0.3 },
+}
+const W = (main, alt, top, band = null, leaves = ['#45b83a', '#5bcf47', '#3aa832']) => ({ main, alt, panel: alt, top, band, ledge: null, leaves, windows: false })
+const DARK = ['#3a3a3a', '#2a2a2a', '#4a4a4a']
+const SNOWY = ['#3db3c4', '#f2fbff', '#e6f6ff']
+export const ZONE_THEMES = [
+  { name: 'Jungle Festival', floor: '#4fbf34', patch: '#62d048', wall: W('#7a4a2a', '#8a5a32', '#3fb83a'), decor: [['palm', 14, 'edge'], ['tree', 6, 'edge', { scale: 1.2 }], ['flowers', 8, 'scatter']], hero: ['stage', {}], weather: [{ kind: 'fall', colors: ['#ff5fa8', '#3ff0ff', '#ffe14a'], count: 60, size: 0.25, speed: 0.8, soft: false }], motes: ['#c8ff6a', '#ffe14a'], mood: null, sound: 'festival', gate: '#ff3cb4' },
+  { name: 'Bamboo Grove', floor: '#7fc04a', patch: '#8fd05a', wall: W('#5a7a3a', '#6a8a42', '#7fcf4a'), decor: [['bamboo', 22, 'edge'], ['lantern', 8, 'scatter', { color: '#ff6a2a' }], ['rock', 5, 'scatter', { color: '#9aa08a' }]], hero: ['torii', { color: '#e0262b' }], weather: [{ kind: 'fall', colors: ['#9fe060', '#c8f080'], count: 50, size: 0.3, speed: 0.6 }], motes: ['#e8ffb0'], mood: 'mist', sound: 'wind', gate: '#7dff3a' },
+  { name: 'Cherry Blossom Garden', floor: '#8ad06a', patch: '#ffc8e0', wall: W('#8a6a5a', '#9a7a6a', '#ff9ac8', '#ffd0e4', ['#ff9ac8', '#ffb8d8', '#ff7ab8']), decor: [['tree', 14, 'edge', { leaves: ['#ff9ac8', '#ffb8d8', '#ff7ab8'] }], ['lantern', 6, 'scatter', { color: '#ffb0d0' }], ['waterPool', 2, 'scatter', { color: '#8fe8ff', w: 7, d: 4 }]], hero: ['torii', { color: '#ff5f8a' }], weather: [{ kind: 'fall', colors: ['#ffb8d8', '#ff9ac8', '#ffffff'], count: 120, size: 0.32, speed: 0.7, sway: 1.4 }], motes: ['#ffd8ec'], mood: 'sunset', sound: 'meadow', gate: '#ff7ab8' },
+  { name: 'Autumn Woods', floor: '#c88a3a', patch: '#d89a4a', wall: W('#7a4a2a', '#8a5a32', '#e07a2a', '#ffb02a', ['#ff8a1a', '#e05a1a', '#ffc02a']), decor: [['tree', 16, 'edge', { leaves: ['#ff8a1a', '#e05a1a', '#ffc02a'] }], ['mushroom', 6, 'scatter', { cap: '#e0262b', height: 1.6 }], ['pumpkins', 4, 'scatter']], hero: ['treeHouse', { leaves: ['#ff8a1a', '#e05a1a', '#ffc02a'] }], weather: [{ kind: 'fall', colors: ['#ff8a1a', '#e05a1a', '#ffc02a', '#a0522d'], count: 110, size: 0.35, speed: 0.9, sway: 1.6 }], motes: ['#ffd27a'], mood: 'dusk', sound: 'night', gate: '#ff8a1a' },
+  { name: 'Mushroom Hollow', floor: '#5a8a4a', patch: '#6a9a5a', wall: W('#4a3a5a', '#5a4a6a', '#7a5aaa', null, ['#b07bff', '#ff7ad8', '#7a5aaa']), decor: [['mushroom', 16, 'edge', { cap: '#b07bff', glow: true, height: 4 }], ['mushroom', 10, 'scatter', { cap: '#ff5fa8', glow: true, height: 1.8 }], ['flowers', 6, 'scatter', { colors: ['#3ff0ff', '#b07bff'] }]], hero: ['giantMushroom', { cap: '#3ff0ff' }], weather: [{ kind: 'rise', colors: ['#b07bff', '#3ff0ff', '#ff7ad8'], count: 90, size: 0.25, speed: 0.4 }], motes: ['#c8a0ff'], mood: 'cave', sound: 'crystal', gate: '#b07bff' },
+  { name: 'Canyon Mesa', floor: '#d8743a', patch: '#e8844a', wall: W('#b8542a', '#c8643a', '#e8844a', '#f0a060', ['#8a9a3a', '#9aaa4a', '#7a8a2a']), decor: [['cactus', 10, 'edge'], ['rock', 10, 'scatter', { color: '#c8643a' }], ['tumbleweed', 4, 'scatter']], hero: ['obelisk', { color: '#c8643a' }], weather: [{ kind: 'fall', colors: ['#f0c080'], count: 60, size: 0.2, speed: 0.4, sway: 4 }], motes: ['#ffd8a0'], mood: 'sunset', sound: 'desert', gate: '#ff8a1a' },
+  { name: 'Oasis Dunes', floor: '#ecd27a', patch: '#f4dc8a', wall: W('#d8b860', '#e0c070', '#f0d888', null, ['#3fb83a', '#5bcf47', '#2a9a2a']), decor: [['palm', 12, 'edge'], ['waterPool', 2, 'scatter', { color: '#3fd8ff', w: 10, d: 6 }], ['cactus', 6, 'scatter']], hero: ['palm', { scale: 2 }], weather: [{ kind: 'fall', colors: ['#fff0c0'], count: 50, size: 0.18, speed: 0.3, sway: 5 }], motes: ['#fff4c0'], mood: 'golden', sound: 'desert', gate: '#3fd8ff' },
+  { name: 'Pharaoh Tombs', floor: '#d9b86a', patch: '#e4c47a', wall: W('#c8a058', '#d4ac64', '#e8c87a', '#3a8aff'), decor: [['obelisk', 6, 'edge', { glowTip: '#ffd23a' }], ['torch', 10, 'edge', { color: '#ff8a1a' }], ['statue', 4, 'edge', { color: '#e4c47a' }], ['goldPile', 4, 'scatter']], hero: ['pyramid', {}], weather: [{ kind: 'rise', colors: ['#ffd23a'], count: 40, size: 0.2, speed: 0.4 }], motes: ['#ffe8a0'], mood: 'golden', sound: 'temple', gate: '#ffd23a' },
+  { name: 'Savanna Sunset', floor: '#d8b84a', patch: '#e4c85a', wall: W('#a8743a', '#b8844a', '#c8a84a', null, ['#5a8a2a', '#6a9a3a', '#4a7a1a']), decor: [['tree', 10, 'edge', { leaves: ['#5a8a2a', '#6a9a3a', '#4a7a1a'], scale: 1.3 }], ['rock', 6, 'scatter', { color: '#a8743a' }], ['flowers', 4, 'scatter', { colors: ['#ffd23a', '#ff8a1a'] }]], hero: ['rock', { scale: 3, color: '#a8743a' }], weather: [{ kind: 'fall', colors: ['#ffe8a0'], count: 40, size: 0.2, speed: 0.3, sway: 2 }], motes: ['#ffd27a', '#ff9a4a'], mood: 'sunset', sound: 'meadow', gate: '#ffb02a' },
+  { name: 'Swamp Bayou', floor: '#4a6a3a', patch: '#3a5a4a', wall: W('#3a4a2a', '#4a5a32', '#5a7a3a', null, ['#3a6a2a', '#4a7a3a', '#2a5a2a']), decor: [['tree', 12, 'edge', { leaves: ['#3a6a2a', '#4a7a3a', '#2a5a2a'] }], ['waterPool', 4, 'scatter', { color: '#5a8a6a', w: 9, d: 5, k: 1 }], ['mushroom', 6, 'scatter', { cap: '#c8ff6a', glow: true, height: 1.4 }]], hero: ['bones', {}], weather: [], motes: ['#c8ff6a', '#ffe14a'], mood: 'swamp', sound: 'swamp', gate: '#c8ff6a' },
+  { name: 'Pirate Cove', floor: '#ecd8a0', patch: '#f4e4b0', wall: W('#8a7a6a', '#9a8a7a', '#5fbf3a'), decor: [['palm', 10, 'edge'], ['barrels', 6, 'scatter'], ['goldPile', 3, 'scatter'], ['waterPool', 2, 'edge', { color: '#2ad0ff', w: 10, d: 6 }]], hero: ['shipwreck', { face: 0.4 }], weather: [{ kind: 'fall', colors: ['#ffffff'], count: 30, size: 0.2, speed: 0.4, sway: 3 }], motes: ['#e8fbff'], mood: null, sound: 'waves', gate: '#2ad0ff' },
+  { name: 'Coral Reef', floor: '#e8d8b8', patch: '#f0e4c8', wall: W('#3a8aaa', '#4a9aba', '#ff6f91', '#ffb347'), decor: [['coral', 18, 'edge'], ['coral', 8, 'scatter', { scale: 0.7 }], ['kelp', 8, 'edge'], ['jelly', 6, 'sky', { color: '#ff7ad8' }]], hero: ['shipwreck', { face: -0.6 }], weather: [{ kind: 'rise', colors: ['#bff4ff', '#ffffff'], count: 120, size: 0.3, speed: 1.0, sway: 0.4 }], motes: ['#9fe8ff', '#ffd8f0'], mood: 'underwater', sound: 'underwater', gate: '#ff6f91' },
+  { name: 'Deep Abyss', floor: '#1a2a4a', patch: '#22355a', wall: W('#0a1a3a', '#122248', '#1a3a6a', '#3ff0ff', ['#2a4a8a', '#3a5aaa', '#1a3a7a']), decor: [['jelly', 12, 'sky', { color: '#3ff0ff' }], ['jelly', 8, 'sky', { color: '#ff7ad8' }], ['kelp', 10, 'edge', { color: '#1a5a5a' }], ['orb', 10, 'scatter', { color: '#3ff0ff' }]], hero: ['bones', {}], weather: [{ kind: 'rise', colors: ['#3ff0ff', '#7dffd8'], count: 140, size: 0.2, speed: 0.3, bright: 2 }], motes: ['#3ff0ff'], mood: 'abyss', sound: 'abyss', gate: '#3ff0ff' },
+  { name: 'Crystal Caverns', floor: '#4a3a6a', patch: '#5a4a7a', wall: W('#3a2a5a', '#4a3a6a', '#8a6aca', '#b07bff', ['#b07bff', '#d8b0ff', '#8a5aea']), decor: [['crystal', 18, 'edge', { color: '#b07bff' }], ['crystal', 10, 'scatter', { color: '#3ff0ff' }], ['crystal', 6, 'scatter', { color: '#ff7ad8' }]], hero: ['heroCrystal', { color: '#d8b0ff' }], weather: [{ kind: 'rise', colors: ['#d8b0ff', '#3ff0ff'], count: 100, size: 0.3, speed: 0.3, soft: false }], motes: ['#e8d8ff'], mood: 'cave', sound: 'crystal', gate: '#d8b0ff' },
+  { name: 'Gem Mine', floor: '#6a5a4a', patch: '#7a6a5a', wall: W('#4a3a2a', '#5a4a3a', '#6a5a4a', '#ffd23a', ['#3a8aff', '#ff3b5c', '#3fdc4c']), decor: [['rails', 1, 'center', { len: 34 }], ['crystal', 10, 'edge', { color: '#ff3b5c' }], ['crystal', 8, 'edge', { color: '#3fdc4c' }], ['torch', 8, 'edge'], ['goldPile', 4, 'scatter']], hero: ['heroCrystal', { color: '#3a8aff' }], weather: [{ kind: 'fall', colors: ['#c8b8a0'], count: 50, size: 0.15, speed: 0.3 }], motes: ['#ffe8a0'], mood: 'cave', sound: 'mine', gate: '#ffd23a' },
+  { name: 'Lava Fields', floor: '#2a2a2e', patch: '#3a2a2a', wall: W('#2a2024', '#34282c', '#4a3030', '#ff5a1a', DARK), decor: [['lavaPool', 5, 'scatter', { w: 9, d: 4 }], ['rock', 10, 'edge', { color: '#2a2024' }], ['bones', 2, 'scatter']], hero: ['volcano', {}], weather: [{ kind: 'rise', colors: ['#ffb02a', '#ff5a1a'], count: 140, size: 0.22, speed: 1.5, bright: 2.2 }, { kind: 'fall', colors: ['#5a5a5a'], count: 60, size: 0.3, speed: 0.5, bright: 0.6 }], motes: ['#ff8a1a'], mood: 'lava', sound: 'lava', gate: '#ff5a1a' },
+  { name: 'Volcano Core', floor: '#3a1a14', patch: '#4a2014', wall: W('#2a1410', '#3a1a14', '#ff5a1a', '#ffb02a', DARK), decor: [['lavaPool', 8, 'scatter', { w: 7, d: 4 }], ['rock', 12, 'edge', { color: '#2a1410' }], ['torch', 6, 'edge', { color: '#ff3b1a' }]], hero: ['volcano', {}], weather: [{ kind: 'rise', colors: ['#ffd23a', '#ff5a1a', '#ff3b1a'], count: 180, size: 0.25, speed: 2, bright: 2.4 }], motes: ['#ff5a1a'], mood: 'lava', sound: 'lava', gate: '#ff3b1a' },
+  { name: 'Obsidian Forge', floor: '#1a1a24', patch: '#24242e', wall: W('#14141c', '#1c1c26', '#3a3a4a', '#ff8a1a', ['#3a3a4a', '#2a2a3a', '#4a4a5a']), decor: [['anvil', 6, 'scatter'], ['torch', 10, 'edge', { color: '#ff8a1a' }], ['lavaPool', 3, 'edge', { w: 6, d: 3 }], ['gear', 4, 'edge', { color: '#5a606e' }]], hero: ['castleGate', { color: '#24242e', roof: '#ff5a1a' }], weather: [{ kind: 'rise', colors: ['#ffb02a', '#ffd23a'], count: 120, size: 0.18, speed: 2.5, bright: 2.4 }], motes: ['#ffb02a'], mood: 'lava', sound: 'forge', gate: '#ff8a1a' },
+  { name: 'Frozen Tundra', floor: '#e8f4fb', patch: '#d8ecf8', wall: W('#9ac8e8', '#aad4f0', '#f4fbff', null, SNOWY), decor: [['pine', 16, 'edge', { snow: true }], ['iceSpike', 8, 'scatter'], ['rock', 4, 'scatter', { color: '#c8d8e8' }]], hero: ['iceSpike', {}], weather: [{ kind: 'fall', colors: ['#ffffff'], count: 260, size: 0.3, speed: 2.2, sway: 3 }], motes: ['#ffffff'], mood: 'blizzard', sound: 'blizzard', gate: '#9fe8ff' },
+  { name: 'Aurora Peaks', floor: '#d8e8f4', patch: '#c8dcec', wall: W('#5a7a9a', '#6a8aaa', '#f4fbff', '#3fffb0', SNOWY), decor: [['pine', 12, 'edge', { snow: true }], ['iceSpike', 6, 'scatter'], ['beam', 4, 'edge', { color: '#3fffb0' }], ['orb', 8, 'scatter', { color: '#8affd8' }]], hero: ['heroCrystal', { color: '#3fffb0' }], weather: [{ kind: 'fall', colors: ['#ffffff'], count: 80, size: 0.25, speed: 0.8 }], motes: ['#8affd8', '#b07bff'], mood: 'aurora', sound: 'aurora', gate: '#3fffb0', aurora: true },
+  { name: 'Glacier Caves', floor: '#c8ecfb', patch: '#b8e0f4', wall: W('#5ab0e0', '#6ac0ec', '#e8f8ff', '#ffffff', SNOWY), decor: [['iceSpike', 14, 'edge'], ['crystal', 8, 'scatter', { color: '#9fe8ff' }], ['waterPool', 2, 'scatter', { color: '#9fe8ff', w: 8, d: 4 }]], hero: ['heroCrystal', { color: '#9fe8ff' }], weather: [{ kind: 'fall', colors: ['#e8f8ff'], count: 70, size: 0.22, speed: 0.6 }], motes: ['#bff4ff'], mood: 'ice', sound: 'cave', gate: '#9fe8ff' },
+  { name: 'Haunted Graveyard', floor: '#3a4a3a', patch: '#2a3a2a', wall: W('#3a3a4a', '#444456', '#2a3a2a', null, DARK), decor: [['tombstone', 24, 'scatter'], ['tree', 10, 'edge', { leaves: ['#2a2a2a', '#3a3a3a', '#1a1a1a'] }], ['lantern', 6, 'edge', { color: '#9fe8ff' }], ['pumpkins', 3, 'scatter']], hero: ['castleGate', { color: '#3a3a4a', roof: '#2a1a3a' }], weather: [{ kind: 'fall', colors: ['#c8d8ff'], count: 50, size: 0.5, speed: 0.2, bright: 0.6 }], motes: ['#9fe8ff', '#c8ff6a'], mood: 'spooky', sound: 'spooky', gate: '#9fe8ff', ghosts: true },
+  { name: 'Pumpkin Patch', floor: '#5a4a2a', patch: '#6a5a32', wall: W('#4a3a2a', '#5a4a32', '#ff8a12', null, ['#ff8a1a', '#e05a1a', '#3a3a2a']), decor: [['pumpkins', 14, 'scatter'], ['tree', 8, 'edge', { leaves: ['#ff8a1a', '#e05a1a', '#3a3a2a'] }], ['torch', 6, 'edge', { color: '#ff8a1a' }]], hero: ['pumpkins', {}], weather: [{ kind: 'fall', colors: ['#ff8a1a', '#3a2a1a'], count: 70, size: 0.3, speed: 0.7, sway: 1.5 }], motes: ['#ffb02a'], mood: 'dusk', sound: 'spooky', gate: '#ff8a12', ghosts: true },
+  { name: 'Witch Woods', floor: '#3a2a4a', patch: '#4a3a5a', wall: W('#2a1a3a', '#3a2a4a', '#5a3a7a', '#5fff6a', ['#5a2a8a', '#7a3aaa', '#3a1a5a']), decor: [['tree', 14, 'edge', { leaves: ['#5a2a8a', '#7a3aaa', '#3a1a5a'] }], ['cauldron', 4, 'scatter'], ['mushroom', 8, 'scatter', { cap: '#5fff6a', glow: true, height: 1.6 }], ['orb', 8, 'sky', { color: '#5fff6a' }]], hero: ['cauldron', { color: '#b07bff' }], weather: [{ kind: 'rise', colors: ['#5fff6a', '#b07bff'], count: 110, size: 0.28, speed: 0.5 }], motes: ['#5fff6a'], mood: 'witch', sound: 'spooky', gate: '#5fff6a' },
+  { name: 'Candy Land', floor: '#ffb8d8', patch: '#ffd0e8', wall: W('#ff8ac8', '#ff9ad4', '#ffffff', '#5fd8ff', ['#ff5fa8', '#ffd23a', '#5fd8ff']), decor: [['candy', 20, 'edge'], ['candy', 8, 'scatter'], ['cloudPuff', 6, 'edge']], hero: ['rainbow', {}], weather: [{ kind: 'fall', colors: ['#ff5fa8', '#ffd23a', '#5fd8ff', '#7dff3a', '#ffffff'], count: 140, size: 0.22, speed: 0.9, soft: false }], motes: ['#fff0f8'], mood: 'candy', sound: 'candy', gate: '#ff5fa8' },
+  { name: 'Toy Town', floor: '#7ad0ff', patch: '#8ad8ff', wall: W('#e0262b', '#2a6dff', '#ffd23a', '#3fb83a'), decor: [['toyBlocks', 14, 'edge'], ['toyBlocks', 6, 'scatter'], ['candy', 4, 'scatter']], hero: ['castleGate', { color: '#ffd23a', roof: '#e0262b' }], weather: [{ kind: 'fall', colors: ['#e0262b', '#2a6dff', '#ffd23a', '#3fb83a'], count: 120, size: 0.25, speed: 1.0, soft: false }], motes: ['#ffffff'], mood: null, sound: 'toys', gate: '#ffd23a' },
+  { name: 'Neon City', floor: '#1a1a2a', patch: '#22223a', wall: W('#141424', '#1c1c30', '#2a2a44', '#ff3cb4', ['#3a3a5a', '#2a2a4a', '#4a4a6a']), decor: [['building', 12, 'edge', { glass: '#2a3a7a', neon: ['#ff3cb4', '#3ff0ff', '#ffe14a'] }], ['neonSign', 10, 'edge'], ['lantern', 6, 'scatter', { color: '#3ff0ff' }]], hero: ['building', { glass: '#3a2a7a', neon: ['#ff3cb4'] }], weather: [{ kind: 'rain', colors: ['#9fb8ff'], count: 300, size: 0.5, speed: 26, bright: 0.8 }], motes: ['#ff3cb4', '#3ff0ff'], mood: 'neon', sound: 'city', gate: '#ff3cb4', grid: '#ff3cb4' },
+  { name: 'Cyber Grid', floor: '#05101a', patch: '#081a28', wall: W('#04121c', '#061a26', '#0a2a3a', '#3ff0ff', ['#0a3a4a', '#0a2a3a', '#0a4a5a']), decor: [['building', 10, 'edge', { glass: '#0a3a5a', neon: ['#3ff0ff', '#7dff3a'] }], ['orb', 12, 'sky', { color: '#3ff0ff' }], ['beam', 6, 'edge', { color: '#3ff0ff' }]], hero: ['heroCrystal', { color: '#3ff0ff' }], weather: [{ kind: 'rise', colors: ['#3ff0ff', '#7dff3a'], count: 160, size: 0.18, speed: 1.5, soft: false, bright: 2 }], motes: ['#3ff0ff'], mood: 'cyber', sound: 'cyber', gate: '#3ff0ff', grid: '#3ff0ff' },
+  { name: 'Robot Factory', floor: '#5a606e', patch: '#6a707e', wall: W('#3a3f4c', '#4a505e', '#ffd23a', '#2a2a30', ['#5a606e', '#6a707e', '#4a505e']), decor: [['gear', 10, 'edge', { color: '#9aa3b2' }], ['steamPipe', 8, 'edge', { color: '#7a808e' }], ['barrels', 6, 'scatter', { color: '#ffd23a' }]], hero: ['dish', {}], weather: [{ kind: 'rise', colors: ['#ffd23a'], count: 60, size: 0.15, speed: 2, soft: false, bright: 2 }], motes: ['#ffe8a0'], mood: 'smog', sound: 'factory', gate: '#ffd23a' },
+  { name: 'Steampunk Docks', floor: '#8a6a4a', patch: '#9a7a5a', wall: W('#6a4a2a', '#7a5a3a', '#b08a3a', '#c8a050', ['#8a7a5a', '#9a8a6a', '#7a6a4a']), decor: [['gear', 8, 'edge', { color: '#b08a3a' }], ['steamPipe', 10, 'edge'], ['barrels', 6, 'scatter'], ['floatRock', 4, 'sky', { color: '#6a4a2a', top: '#b08a3a' }]], hero: ['shipwreck', { face: 0.2 }], weather: [{ kind: 'rise', colors: ['#e8e0d0'], count: 70, size: 0.8, speed: 1.2, bright: 0.5 }], motes: ['#ffd8a0'], mood: 'smog', sound: 'steam', gate: '#c8a050' },
+  { name: 'Angel Biome', floor: '#e4ecf8', patch: '#f0f4fc', wall: W('#e8f0ff', '#f4f8ff', '#ffffff', '#ffd23a', ['#ffffff', '#fff4d0', '#f0f8ff']), decor: [['cloudPuff', 16, 'edge'], ['statue', 6, 'edge', { color: '#f4f0e0', halo: true }], ['pillar', 8, 'edge', { color: '#f4f0e0' }], ['beam', 6, 'scatter', { color: '#fff2b0' }]], hero: ['fountain', {}], weather: [{ kind: 'fall', colors: ['#ffffff', '#fff4d0'], count: 90, size: 0.4, speed: 0.4, sway: 1.5 }], motes: ['#ffe88a'], mood: 'heaven', sound: 'heaven', gate: '#ffd23a' },
+  { name: 'Sky Islands', floor: '#6ad84a', patch: '#7ae05a', wall: W('#8a6a4a', '#9a7a5a', '#6ad84a'), decor: [['floatRock', 12, 'sky'], ['tree', 10, 'edge'], ['cloudPuff', 8, 'scatter'], ['waterPool', 2, 'scatter', { color: '#3fd8ff', w: 6, d: 4 }]], hero: ['rainbow', {}], weather: [{ kind: 'fall', colors: ['#ffffff'], count: 40, size: 0.3, speed: 0.4 }], motes: ['#ffffff', '#c8ff6a'], mood: null, sound: 'wind', gate: '#3fd8ff' },
+  { name: 'Storm Peaks', floor: '#5a5f6a', patch: '#4a4f5a', wall: W('#3a3f4a', '#444a56', '#5a5f6a', '#ffe14a', ['#3a4a3a', '#2a3a2a', '#4a5a4a']), decor: [['rock', 14, 'edge', { color: '#4a4f5a' }], ['pine', 8, 'edge', { leaf: '#2a4a3a' }], ['obelisk', 4, 'scatter', { color: '#4a4f5a', glowTip: '#9fe8ff' }]], hero: ['obelisk', { color: '#3a3f4a', glowTip: '#ffe14a' }], weather: [{ kind: 'rain', colors: ['#c8d8ff'], count: 360, size: 0.5, speed: 30, bright: 0.8 }], motes: ['#9fe8ff'], mood: 'storm', sound: 'storm', gate: '#ffe14a' },
+  { name: 'Ancient Temple', floor: '#7aa88a', patch: '#8ab89a', wall: W('#4a7a5a', '#5a8a6a', '#3fb83a', '#ffd23a'), decor: [['pillar', 12, 'edge', { color: '#8ab89a' }], ['statue', 6, 'edge', { color: '#5a8a6a' }], ['torch', 8, 'edge', { color: '#5fff6a' }], ['goldPile', 3, 'scatter']], hero: ['pyramid', { color: '#5a8a6a' }], weather: [{ kind: 'fall', colors: ['#9fe060', '#ffe14a'], count: 60, size: 0.3, speed: 0.6, sway: 1.5 }], motes: ['#c8ff6a'], mood: 'jade', sound: 'temple', gate: '#5fff6a' },
+  { name: "Dragon's Lair", floor: '#3a1a1a', patch: '#4a2020', wall: W('#2a1414', '#3a1a1a', '#5a2020', '#ffd23a', DARK), decor: [['goldPile', 12, 'scatter'], ['torch', 10, 'edge', { color: '#ff3b1a' }], ['bones', 4, 'edge'], ['lavaPool', 3, 'edge', { w: 6, d: 3 }]], hero: ['dragonSkull', {}], weather: [{ kind: 'rise', colors: ['#ffd23a', '#ff5a1a'], count: 120, size: 0.22, speed: 1.2, bright: 2.2 }], motes: ['#ffd23a'], mood: 'dragon', sound: 'lava', gate: '#ffd23a' },
+  { name: 'Celestial Garden', floor: '#2a2a5a', patch: '#3a3a6a', wall: W('#1a1a4a', '#22225a', '#6a4ac8', '#ffe88a', ['#b07bff', '#8a5aea', '#d8b0ff']), decor: [['tree', 10, 'edge', { leaves: ['#b07bff', '#8a5aea', '#d8b0ff'] }], ['orb', 16, 'sky', { color: '#ffe88a' }], ['crystal', 8, 'scatter', { color: '#d8b0ff' }], ['flowers', 8, 'scatter', { colors: ['#3ff0ff', '#ffe88a', '#ff7ad8'] }]], hero: ['planet', { color: '#b07bff', size: 9, ring: '#ffe88a' }], weather: [{ kind: 'fall', colors: ['#ffe88a', '#ffffff', '#b07bff'], count: 120, size: 0.3, speed: 0.4, soft: false, bright: 2 }], motes: ['#ffe88a'], mood: 'celestial', sound: 'aurora', gate: '#ffe88a' },
+  { name: 'Galaxy Road', floor: '#100a24', patch: '#1a1034', wall: W('#0a0618', '#120a24', '#3a1a6a', '#ff3cb4', ['#3a1a6a', '#5a2a8a', '#2a1a4a']), decor: [['orb', 18, 'sky', { color: '#ff7ad8' }], ['crystal', 8, 'edge', { color: '#ff3cb4' }], ['planet', 2, 'far', { color: '#ff8a5a', size: 16, ring: '#ffd27a' }]], hero: ['planet', { color: '#3a8aff', size: 12 }], weather: [{ kind: 'fall', colors: ['#ffffff', '#ff7ad8', '#3ff0ff'], count: 160, size: 0.2, speed: 0.3, soft: false, bright: 2.2 }], motes: ['#ff7ad8', '#3ff0ff'], mood: 'space', sound: 'space', gate: '#ff3cb4' },
+  { name: 'Moon Base', floor: '#9aa0aa', patch: '#8a909a', wall: W('#6a707a', '#7a808a', '#9aa0aa', '#3ff0ff', ['#8a909a', '#9aa0aa', '#7a808a']), decor: [['crater', 10, 'scatter'], ['dome', 4, 'edge'], ['dish', 4, 'edge'], ['planet', 1, 'far', { color: '#3a8aff', size: 22 }]], hero: ['dome', {}], weather: [{ kind: 'fall', colors: ['#ffffff'], count: 60, size: 0.15, speed: 0.15, soft: false, bright: 2 }], motes: ['#3ff0ff'], mood: 'moon', sound: 'space', gate: '#3ff0ff' },
+  { name: 'Rainbow Road', floor: '#f0e8ff', patch: '#ffe8f8', wall: W('#b07bff', '#c08aff', '#ffffff', '#ffe14a', ['#ff5fa8', '#5fd8ff', '#ffd23a']), decor: [['orb', 14, 'sky', { color: '#ffffff' }], ['crystal', 10, 'edge', { color: '#ff5fa8' }], ['crystal', 10, 'edge', { color: '#5fd8ff' }]], hero: ['rainbow', {}], weather: [{ kind: 'fall', colors: ['#ff3b3b', '#ff9a1a', '#ffe14a', '#3fdc4c', '#2a9cff', '#8a3cff'], count: 180, size: 0.25, speed: 0.6, soft: false, bright: 2 }], motes: ['#ffffff'], mood: 'rainbow', sound: 'gold', gate: '#ffffff', rainbowFloor: true },
+  { name: 'Golden Paradise', floor: '#e8b83a', patch: '#f0c84a', wall: W('#e8b83a', '#f0c84a', '#fff0b0', '#ffffff', ['#ffd23a', '#fff0b0', '#ffe14a']), decor: [['goldPile', 14, 'scatter'], ['statue', 8, 'edge', { color: '#ffd23a', halo: true }], ['pillar', 8, 'edge', { color: '#ffe48a' }], ['beam', 6, 'scatter', { color: '#fff2b0' }]], hero: ['fountain', {}], weather: [{ kind: 'fall', colors: ['#ffd23a', '#fff4c0', '#ffffff'], count: 200, size: 0.3, speed: 0.6, soft: false, bright: 2.4 }], motes: ['#ffe88a'], mood: 'golden', sound: 'gold', gate: '#ffd23a' },
+]
+
+// Guard vehicles by strength (police.js), five zones per tier, five marks each.
+export const GUARD_TIERS = [
+  { kind: 'policeBike', name: 'Police Bike' },
+  { kind: 'policeSportsBike', name: 'Police Sports Bike' },
+  { kind: 'policeCar', name: 'Police Car' },
+  { kind: 'policeSUV', name: 'Police SUV' },
+  { kind: 'swatTruck', name: 'SWAT Truck' },
+  { kind: 'armoredTruck', name: 'Armoured Truck' },
+  { kind: 'policeTank', name: 'Police Tank' },
+  { kind: 'hoverTank', name: 'Hover Tank' },
+]
+// Shape of the generated zones: length, how much each climbs, the sign amounts
+// (zone 4's 20K grows by `growth` per zone), the bikes on offer and streaming.
+export const ZONE_GEN = {
+  length: 48, // m per zone
+  rise: 0.5, // m each zone's floor sits above the last
+  growth: 2.1,
+  rarities: ['Rare', 'Epic', 'Legendary', 'Legendary', 'Mythical', 'Insane', 'Secret', 'Cosmic'], // per tier of 5 zones
+  posts: [[1, 14], [2, 29], [3, 99]], // [guard posts, up to zone]
+  ahead: 2, // zones built and shown ahead of yours
+  behind: 1, // ... and behind
+}
+// Sound (audio.js).
+export const AUDIO = { volume: 0.7, bedVolume: 0.55, crossfade: 2, snoreRange: 22, fallRange: 34 }
+
+export const RIDE = { speedScale: 1.7, seatLift: 0.45, bikeScale: 1.25 } // Ride My Bike: speed multiplier, how far the rider sits up, bike size
+export const PALETTE = {
+  ground: '#d98a3c',
+  road: '#5d5c80',
+  roadLine: '#ffffff',
+  curb: '#ff8a1c',
+  pad: '#5b49c9',
+  padLine: '#ff8a1c',
+  path: '#aeb1ee',
+  padEdge: '#2a2856',
+  wall: '#5a3fc4',
+  wallAlt: '#6a50d4',
+  wallPanel: '#4f37b0',
+  wallTop: '#f08a22',
+  ledge: '#f5b625',
+  window: '#9fa8f0',
+  cliff: '#a85a3e',
+  cliffTop: '#53c23c',
+  grass: '#62d83c',
+  brick: '#9b5b49',
+  trunk: '#5b3a2a',
+  leavesOrange: ['#ff8a1a', '#ffa21f', '#ff6f12'],
+  leavesGreen: ['#45b83a', '#5bcf47', '#3aa832'],
+  steel: '#25304c',
+  treadFrame: '#b8dcf2',
+  treadBelt: '#262e4a',
+  safeLine: '#ff2440',
+  puddle: '#58d4ff',
+}
+// Lobby countdowns (timers.js) in seconds, and the HUD's starting numbers (hud.js).
+export const TIMERS = {
+  event: { open: 240, closed: 1500, startLeft: 223 }, // Halloween event: open 4 min, back 25 min later
+  race: { every: 300, startLeft: 174, nowFor: 8 }, // a race every 5 min; "Race is NOW!" for 8 s
+  boost: 260, // s left on the x2 boost shown under the x2 Speed button
+}
+// Server-style announcements across the top of the screen (hud.js): every
+// `every` s, shown for `show` s. `bike` is drawn in its rarity's colours.
+export const ANNOUNCE = { first: 25, every: 90, show: 6, messages: [{ pre: 'A ', bike: 'Secret Phantom GT', post: ' Just Spawned in Angel Biome!' }] }
+export const HUD_START = { cash: 3300, gems: 377, income: 10 } // income = treadmill $2/s + Club Tourer $8/s
+export const SLOW_MODE_SCALE = 0.5 // walk/sprint speed with Slow Mode on
+
+export const SPAWN = { x: -1, y: 0.05, z: 8 }
+export const SPAWN_FACING = Math.PI // yaw the character faces on spawn (PI = toward -Z)
 
 // --- Player modes (modes.js) -------------------------------------------------
 // 'character' = third-person chase cam with the avatar on screen.
@@ -75,315 +217,33 @@ export const PHYSICS = {
   jumpSpeed: 8.5, // m/s
   coyoteTime: 0.1, // s after leaving a ledge a jump still counts
   jumpBuffer: 0.12, // s a jump pressed before landing is remembered
-  stepHeight: 0.45, // m autostep
+  stepHeight: 0.75, // m autostep (zone 2's plateau is a 0.7 m step)
   maxSlope: 50, // degrees the player can walk up
   snapToGround: 0.4, // m the controller stays glued to downward steps and slopes
   pushMass: 80, // kg the character weighs when shoving crates
   killY: -6, // sank this far: respawn
 }
-export const PLAYER_DIMS = { radius: 0.75, height: 1.8 } // wide capsule: it carries the boat
-
-// --- Lobby props (lobby.js) ---------------------------------------------------
-// Roblox-scale, measured off the reference shot: the gate is ~38 m wide and
-// ~50 m ahead of the spawn. Positions are (x, z) in metres.
-export const LOBBY = {
-  gate: { z: -43.5, halfWidth: 19, postHeight: 18.5, bannerY: 14.2, bannerHeight: 5.3, padDepth: 4.6, arrowY: 22.5, arrowScale: 3, arrowSpacing: 10.5 },
-  lane: { length: 160, buoySpacing: 1.9 }, // buoy ropes from the gate posts out to sea
-  // Red chevron walls, each from its gate end to its far end. The left one follows
-  // the shoreline; the right one runs straight back past the spawn, like the shot.
-  barrier: {
-    height: 2,
-    lines: [
-      { from: [-22.5, -43], to: [-62, 8] },
-      // wall: metres of chevron wall from the gate end (default the whole line, 0 = none)
-      { from: [23, -43], to: [20, 25], wall: 47, height: 3.2, walkway: true, statues: true },
-    ],
-  },
-  walkway: { width: 3.2, height: 0.4, check: 1.6 }, // raised checkered pink strip with red sides; check = m per 2x2 tile
-  statues: { at: [22, 28, 34, 40], scale: 1.05 }, // on the right walkway, m from the wall's gate end
-  upgrade: { x: -20, z: -18, scale: 1.6 },
-  rockets: [
-    // engine: the ENGINE gem engine it sells (interact.js).
-    { name: 'GALACTIC THRUSTER', engine: 'galactic', x: -25, z: -7, label: '#ff4fd8', body: '#f4f6fb', nose: '#e8262b', fin: '#2f7dff', stripe: '#e8262b' },
-    { name: 'BLAZE DRIFT', engine: 'blaze', x: -16, z: -31, label: '#ff3b3b', body: '#1a1b22', nose: '#e8262b', fin: '#e8262b', stripe: '#ffffff' },
-  ],
-  rocketScale: 1.25,
-  umbrella: { x: -31, z: -20, scale: 2.1 },
-  palms: [
-    // x, z, height, leanX, leanZ (the back of the beach has its own, in PLAZA)
-    [-36, 0, 16, 0.5, -0.15],
-    [-46, -6, 12, 0.2, -0.3],
-    [25, -6, 15, -0.45, -0.15],
-    [36, -14, 12, -0.25, -0.2],
-    [52, 6, 11, -0.15, -0.3],
-    [-50, 10, 14, 0.1, -0.2], // behind the boat stall (west view)
-    [-34, -22, 12, -0.2, 0.2],
-  ],
-  colors: {
-    banner: '#0c0d14',
-    bannerFrame: '#3d8bff',
-    pad: '#ffd21a',
-    barrier: '#e0262b',
-    walkway: '#ff5fa8',
-    walkwayLight: '#ff86c0',
-    buoyA: '#ff3030',
-    buoyB: '#ffd21a',
-    arrow: '#e81e1e',
-  },
-}
-
-// Palm trees (propkit.js), shared by the lobby and the plaza.
-export const PALM = { trunk: '#a8743f', leaf: '#3fae2c' }
-
-// --- Training plaza at the back of the beach (plaza.js) ---------------------------
-// The reference's south view: two Train stations either side of a VIP portal
-// under a waterfall, ringed by grassy cliffs. Facing it (+Z), +X is screen-left.
-export const PLAZA = {
-  platform: { width: 20, depth: 24, height: 0.35 },
-  // Each station: six treadmill lanes in a straight grid of two rows of three
-  // (station frame: rowZ/colX are lane centres), the whole station turned
-  // (yaw) so the lanes' far ends lean toward the VIP in the middle. Lanes are
-  // ~2x the boat's length with 1.8 m aisles between columns and a 2.4 m
-  // walkway between the rows (the front row's SPEED boards stand in it).
-  // `neon` is each lane's glowing rail colour, listed front row first, left to
-  // right as seen from the spawn; `req`/`power` are the lock tags over the
-  // SPEED boards. The front edge stays behind the end of the right walkway
-  // (LOBBY, ~(20, 25)) and the Eggs stall; the back clears the pool and cliffs.
-  lane: { width: 4.2, length: 7.6, rowZ: [-6.5, 4.3], colX: [6.3, 0, -6.3] },
-  trains: [
-    {
-      x: 20.5, z: 39, yaw: -0.15, firstSpeed: 1, boards: ['rebirths', 'trophies'],
-      neon: ['#2f8cff', '#33ff6a', '#2f8cff', '#ff3bd8', '#ff2a2a', '#2f8cff'],
-      req: ['0', '1K', '5K', '35K', '400K', '1M'],
-      power: ['+1', '+3', '+5', '+10', '+20', '+30'],
-    },
-    {
-      x: -20.5, z: 39, yaw: 0.15, firstSpeed: 7, boards: ['energy', 'playtime'],
-      neon: ['#e8f4ff', '#33ff6a', '#27e8ff', '#ff3bd8', '#ff2a2a', '#2f8cff'],
-      req: ['4M', '15M', '50M', '300M', '1.5B', '5B'],
-      power: ['+40', '+50', '+60', '+70', '+80', '+90'],
-    },
-  ],
-  // The two leaderboards behind each station (`boards` above: dark on screen-left, then yellow),
-  // keyed by the saved stat the backend ranks (leaderboard.ts LEADERBOARD_STATS): title over the
-  // board, the stat column's heading and its colour. Rows come from the server's `leaderboard`.
-  leaderboards: {
-    rebirths: { title: '🔄 Rebirth', column: 'Rebirth', color: '#ff3d8b' },
-    trophies: { title: '🏆 Wins', column: 'Wins', color: '#ffe14a' },
-    energy: { title: '⚡ Power', column: 'Power', color: '#5fd0ff' },
-    playtime: { title: '⏱️ Playtime', column: 'Time', color: '#7dff6a' },
-  },
-  vip: { x: 0, z: 42 },
-  portal: { open: '#4fc8ff', locked: '#ff4f6a' }, // the VIP arch's glowing fill (worlds.js)
-  waterfall: { x: 0, z: 53.6, width: 11, height: 32 },
-  // Kiosks just outside the stations' outer edges.
-  golden: { x: 39, z: 37 },
-  index: { x: 36, z: 48 },
-  relics: { x: -39, z: 40 },
-  chest: { x: -36, z: 50 },
-  // x, z, height: red feather flags. They face +-X, so the east view sees them
-  // broadside and the south view edge-on (thin red/white stripes).
-  flags: [[24, 19, 13], [44, 60, 16], [-36, 30, 13], [-50, 64, 16], [36, 31, 13], [33, 54, 13], [-20, 21, 12]],
-  // x, z, width, depth, height, yaw
-  cliffs: [
-    [0, 64, 34, 16, 32, 0],
-    [-30, 72, 32, 18, 27, 0.25],
-    [30, 72, 32, 18, 25, -0.25],
-    [-56, 52, 22, 40, 22, 0.55],
-    [56, 52, 22, 40, 24, -0.55],
-    [-68, 22, 16, 30, 18, 0.2],
-    [68, 22, 16, 30, 16, -0.2],
-    [-15, 56, 12, 8, 13, 0.1],
-    [16, 56, 12, 8, 11, -0.1],
-  ],
-  // x, z, y (cliff top or 0), height, leanX, leanZ
-  palms: [
-    [-8, 62, 32, 11, -0.1, -0.2],
-    [10, 67, 32, 12, 0.15, -0.15],
-    [-24, 67, 27, 12, 0.2, -0.2],
-    [-38, 74, 27, 11, 0, -0.2],
-    [26, 68, 25, 12, -0.2, -0.2],
-    [40, 75, 25, 11, 0, -0.2],
-    [-50, 42, 22, 11, 0.3, -0.2],
-    [-58, 60, 22, 10, 0.2, -0.1],
-    [50, 40, 24, 12, -0.3, -0.2],
-    [60, 62, 24, 10, -0.2, -0.1],
-    [-15, 55, 13, 9, 0.1, -0.3],
-    [16, 55, 11, 10, -0.1, -0.3],
-    [38, 25, 0, 13, -0.3, -0.1],
-    [-42, 32, 0, 12, 0.3, -0.1],
-  ],
-  rock: '#966a6c',
-  rockDark: '#6c4a52',
-  grass: '#43c03a',
-  grassLight: '#7ae04c',
-}
-
-// --- Shop stalls (shops.js) ---------------------------------------------------------
-// Either side of the spawn, fronts facing it: Eggs past the statue wall (east
-// view, +X) and Boats on the west side (-X). Items are listed left to right as
-// seen from the front.
-export const SHOPS = {
-  eggs: {
-    x: 26,
-    z: 12,
-    yaw: -Math.PI / 2, // local +Z (the front) faces -X
-    width: 19,
-    depth: 7,
-    // price: Wins (trophies) per hatch; pets: hatch odds by PETS kind (weights, any total).
-    eggs: [
-      { name: 'Sunny Egg', price: 30, color: '#ffd21a', pets: { dog: 55, cat: 35, bunny: 10 } },
-      { name: 'Spiky Egg', price: 1e3, color: '#ffb21a', spiky: true, pets: { cat: 40, bunny: 35, bear: 20, fox: 5 } },
-      { name: 'Jungle Egg', price: 20e3, color: '#3ddc4a', glow: 0.8, pets: { bunny: 30, bear: 40, fox: 25, panda: 5 } },
-      { name: 'Rainbow Egg', price: 500e3, rainbow: true, pets: { fox: 50, panda: 40, dragon: 10 } },
-    ],
-  },
-  boats: {
-    x: -27,
-    z: 12,
-    yaw: Math.PI / 2, // front faces +X
-    width: 21,
-    depth: 7,
-    boatScale: 1.3,
-    boatAngle: 0.55, // rad each boat is turned from side-on toward the front
-    boats: [
-      // stat: the number under the name; fx: 'aura' (rising glow + sparkles) or 'fire'; glow: neon/particle colour
-      // id: the BOATS catalog boat it sells (interact.js).
-      { id: 'royalWave', name: 'ROYAL WAVE', kind: 'speedboat', color: '#2bd14a', labelColor: '#ff3b3b', bow: -1, stat: '1699', fx: 'aura', glow: '#3dff6a' },
-      { id: 'viking', name: 'VIKING SHIP', kind: 'viking', color: '#ffb21a', labelColor: '#ff3b3b', bow: 1, stat: '90', fx: 'fire', glow: '#ff8a1a' },
-    ],
-  },
-}
-
-// --- Hub pads (hub.js) ----------------------------------------------------------------
-// A glowing touch pad in front of each shop object; driving onto one opens its
-// window (once per visit: leave the pad to re-arm it). `open` names the window
-// main.js passes in; keep them on open sand (the pink walkway runs past the Eggs
-// stall's front, x > 17). Pets = the Eggs stall, Boats = the Boats stall, Engine =
-// the Engine Upgrade machine, Partner = the hero statues on the right walkway.
-export const HUB = {
-  radius: 2.6, // m: the pad's size and its trigger distance from the boat's centre
-  beamHeight: 1.8, // m of glowing light wall round the rim
-  labelY: 3.4,
-  labelHeight: 1.3,
-  pads: [
-    { open: 'pets', name: 'PETS', x: 14.2, z: 12, color: '#ffd21a' },
-    { open: 'boats', name: 'BOATS', x: -19.6, z: 12, color: '#3dff6a' },
-    { open: 'engine', name: 'ENGINES', x: -15.6, z: -12.5, color: '#3ff0ff' },
-    { open: 'partner', name: 'PARTNERS', x: 15.2, z: -12, color: '#ff5fd8' },
-  ],
-}
-
-// --- Interact prompts (interact.js) ---------------------------------------------------
-// Near a shop object, a prompt over it says what E (or a tap on the prompt) does:
-// hatch an egg, buy / equip a display boat, rocket engine or statue partner,
-// upgrade to the next ladder engine, or open a hub pad's window. The nearest
-// object in range wins. Radii are m (ground distance) from the object's centre.
-export const INTERACT = {
-  radius: { egg: 9, boat: 8, upgrade: 6.5, rocket: 5, statue: 5 },
-  toastSeconds: 1.8,
-}
-
-// --- Eggs and hatching (eggs.js, hatch.js) -----------------------------------------------
-// E at a stall egg opens its window (the egg, its Wins price, every pet with its
-// odds + multiplier, Open 1 / Open N / Auto); a hatch pays, rolls (SHOPS.eggs
-// `pets` weights, then a tier at its chance x luck) and plays the overlay. Ported
-// from Kayak & Surf's eggs.js / hatch.js.
-export const EGG_HATCH = {
-  closeRange: 13, // m: driving further than this from the open egg closes its window
-  openMany: 3, // eggs per Open N
-  autoDelay: 0.35, // s between Auto's hatches
-  time: { shake: 1.6, reveal: 1.8, auto: 0.55 }, // s: eggs shaking, cards shown; Auto plays at x`auto`
-  // [PETS.tiers index, chance per hatch], rarest first; each chance x luck (1 + the boosts' luck %).
-  tiers: [
-    [2, 1 / 1000], // Rainbow
-    [1, 1 / 50], // Golden
-  ],
-  rays: ['rare', 'epic', 'legendary'], // rarities with light rays behind the revealed card
-  rarityColor: { common: '#e4e8f0', uncommon: '#6ee36e', rare: '#59b8ff', epic: '#c77dff', legendary: '#ffc93a' },
-}
-
-// --- Boats window (boats.js) + catalog models (boatModels.js) ----------------------
-// The whole boat inventory, in window order (4 per row), from the Boats reference
-// shots. Every boat is bought with Wins (the HUD's trophy counter); only the
-// Wooden Raft is free (price null). wins / luck / acc are % boosts, engines the
-// rocket xN; `rarity` colours the tile, preview and name. The first two were
-// Robux boats in the reference: their Wins price comes from where their stats
-// land on the ladder (Viking Ship ~ between the 11B and 88B boats; Royal Wave
-// beats Sailing Ship Big on every stat). `model` = colours/options for the
-// builder named by `kind` (boatModels.js).
-export const BOATS = {
-  preloadDelayMs: 4000, // tile pictures start drawing this long after boot
-  start: { owned: ['raft'], equipped: 'raft' },
-  rarity: { premium: '#ff5b37', common: '#d4d4d4', uncommon: '#62d65c', rare: '#2ba8f4', epic: '#ec5fc0', legendary: '#ffc61f' },
-  // Boat name colour on the blue card, per rarity.
-  nameColor: { premium: '#ff5b37', common: '#e4e4e4', uncommon: '#7dff6a', rare: '#bfeaff', epic: '#ff9ce0', legendary: '#ffd52e' },
-  list: [
-    { id: 'viking', name: 'Viking Ship', kind: 'viking', rarity: 'premium', price: 50e9, wins: 300, luck: 60, acc: 300, engines: 5, model: { color: '#d42a1c', head: '#d42a1c', deck: '#6a3a1c', stripes: '#ffcf1f', mane: ['#ffcf1f'], shields: ['#ffcf1f', '#d42a1c'] } },
-    { id: 'royalWave', name: 'Royal Wave', kind: 'speedboat', rarity: 'premium', price: 1e18, wins: 1200, luck: 150, acc: 800, engines: 8, model: { color: '#0d1f10', deck: '#1d5a26', engine: '#0d1f10', band: '#3dff4a', neon: '#3dff4a' } },
-    { id: 'raft', name: 'Wooden Raft', kind: 'raft', rarity: 'common', price: null, wins: 10, luck: 5, acc: 20, engines: 1, model: { color: '#b07440' } },
-    { id: 'canoe', name: 'Canadian Canoe', kind: 'canoe', rarity: 'common', price: 200, wins: 20, luck: 7, acc: 50, engines: 1, model: { color: '#ffc21a', inner: '#e3a40e', rim: '#ffd84a', seat: '#c98a0c' } },
-    { id: 'rowboat', name: 'Rowboat', kind: 'rowboat', rarity: 'common', price: 1e3, wins: 30, luck: 9, acc: 70, engines: 1, model: { color: '#5f636b', inner: '#9ea3ab' } },
-    { id: 'jetski', name: 'Jet Ski', kind: 'jetski', rarity: 'common', price: 5e3, wins: 45, luck: 12, acc: 95, engines: 2, model: { color: '#1d2f63', seat: '#c8262b' } },
-    { id: 'armyDinghy', name: 'Army Dinghy', kind: 'dinghy', rarity: 'uncommon', price: 40e3, wins: 65, luck: 15, acc: 120, engines: 2, model: { tube: '#4c5a2c', floor: '#2b3419' } },
-    { id: 'nightDinghy', name: 'Night Dinghy', kind: 'dinghy', rarity: 'uncommon', price: 320e3, wins: 90, luck: 19, acc: 150, engines: 2, model: { tube: '#26272d', floor: '#a8561a' } },
-    { id: 'tealConsole', name: 'Teal Console', kind: 'console', rarity: 'uncommon', price: 2.6e6, wins: 120, luck: 24, acc: 185, engines: 3, model: { color: '#13857a', deck: '#0d5a52' } },
-    { id: 'redSailboat', name: 'Red Sailboat', kind: 'sailboat', rarity: 'uncommon', price: 21e6, wins: 150, luck: 29, acc: 220, engines: 3, model: { color: '#b8242a', sail: '#2a2a33', deck: '#3a3a42' } },
-    { id: 'navyCruiser', name: 'Navy Cruiser', kind: 'cruiser', rarity: 'rare', price: 170e6, wins: 185, luck: 34, acc: 260, engines: 3, model: { color: '#25335a', cabin: '#3b4a78' } },
-    { id: 'tugboat', name: 'Tugboat', kind: 'tug', rarity: 'rare', price: 1.4e9, wins: 225, luck: 40, acc: 300, engines: 4, model: { color: '#b83a2c', cabin: '#f4f4f4' } },
-    { id: 'woodenSailboat', name: 'Wooden Sailboat', kind: 'sailboat', rarity: 'rare', price: 11e9, wins: 270, luck: 46, acc: 340, engines: 4, model: { color: '#7a4a26', sail: '#8c8378', deck: '#a06a3a', masts: 2 } },
-    { id: 'navyYacht', name: 'Navy Yacht', kind: 'cruiser', rarity: 'rare', price: 88e9, wins: 320, luck: 52, acc: 380, engines: 4, model: { color: '#24427e', cabin: '#1d3466', rail: '#cfd6e0' } },
-    { id: 'steelSailer', name: 'Steel Sailer', kind: 'sailboat', rarity: 'epic', price: 700e9, wins: 375, luck: 58, acc: 420, engines: 5, model: { color: '#6c7079', sail: '#3c3f46', deck: '#8a8f98', cabin: '#55595f' } },
-    { id: 'harborFerry', name: 'Harbor Ferry', kind: 'tug', rarity: 'epic', price: 5.6e12, wins: 430, luck: 63, acc: 455, engines: 5, model: { color: '#26272c', cabin: '#ffcc22', roof: '#2a2b30', decks: 2, tires: true } },
-    { id: 'shadowYacht', name: 'Shadow Yacht', kind: 'cruiser', rarity: 'epic', price: 45e12, wins: 480, luck: 68, acc: 480, engines: 5, model: { color: '#3a3d45', cabin: '#2a2c33', rail: '#8a8f98' } },
-    { id: 'pirateShip', name: 'Pirate Ship', kind: 'galleon', rarity: 'epic', price: 360e12, wins: 530, luck: 72, acc: 500, engines: 5, model: { color: '#5a3418', deck: '#7a4a24', sail: '#17171b', trim: '#3a2210', masts: 2, skull: true } },
-    { id: 'blackGalleon', name: 'Black Galleon', kind: 'galleon', rarity: 'legendary', price: 2.9e15, wins: 565, luck: 76, acc: 515, engines: 6, model: { color: '#1e1f24', deck: '#3a2a1c', sail: '#232428', trim: '#d8a21a', masts: 3 } },
-    { id: 'sailingShipBig', name: 'Sailing Ship Big', kind: 'galleon', rarity: 'legendary', price: 23e15, wins: 600, luck: 80, acc: 530, engines: 6, model: { color: '#8a5428', deck: '#b07a44', sail: '#2f9df0', trim: '#5a3418', masts: 3 } },
-  ],
-  thumb: { width: 256, height: 320, outline: 7, budgetMs: 12 }, // px of each rendered tile picture, ms of drawing per frame (boatThumbs.js)
-}
-
-// A small rocky islet with palms out at sea, seen past the stall in the east view.
-export const ISLET = { x: 115, z: -40, rock: [0, 0, 28, 18, 18, 0.3], hill: { rx: 36, ry: 7, rz: 24 } }
-
-// --- Player boat (boat.js) ------------------------------------------------------
-export const BOAT = {
-  length: 3.6, // m bow to stern
-  beam: 1.15, // m wide
-  deck: 0.32, // m the rider stands above the player's feet
-  hull: '#ffc21a',
-  hullDark: '#8a4b1c',
-  cockpit: '#d9822b',
-  engine: '#1d6b55',
-  engineBand: '#8dff6a',
-  flame: '#38d7ff',
-  flameGlow: 3, // HDR multiplier on the engine flames when bloom is on (propkit neon)
-  bobAmount: 0.05, // m idle bob
-  bobFrequency: 1.6, // Hz
-  pitchPerAccel: 0.012, // rad of nose-up per m/s^2 of acceleration
-  rollPerTurn: 0.12, // rad of lean into a turn
-  ease: 6, // 1/s the tilt eases
-}
+export const PLAYER_DIMS = { radius: 0.75, height: 1.8 } // capsule the character controller moves
 
 // --- Look ------------------------------------------------------------------
 export const RENDER = { exposure: 1.0 }
-export const FOG = { near: 170, far: 650 }
+export const FOG = { near: 160, far: 620 }
 // The two lighting moods lighting.js blends between (key N toggles).
 export const TIME_OF_DAY = {
   transition: 2.5, // s to blend day <-> night
   day: {
-    zenith: '#1576f0',
-    horizon: '#a9e2ff',
-    sunColor: '#fff4de',
+    zenith: '#2b8ff0',
+    horizon: '#bdeaff',
+    sunColor: '#fff6e6',
     // Sun + hemi + env together keep the pale sand (#eed39c) near its own tan;
     // much more and ACES washes it (and the props) out to grey-white.
-    sunIntensity: 2.4,
-    sunElevation: 55, // degrees above the horizon
-    sunAzimuth: 35, // degrees, 0 = from +Z
-    hemiSky: '#e4f2ff',
-    hemiGround: '#d8c39a',
-    hemiIntensity: 0.8,
-    envIntensity: 0.45,
+    sunIntensity: 2.6,
+    sunElevation: 62, // degrees above the horizon
+    sunAzimuth: 160, // degrees, 0 = from +Z
+    hemiSky: '#e8f4ff',
+    hemiGround: '#c99a6a',
+    hemiIntensity: 0.95,
+    envIntensity: 0.5,
     lampIntensity: 0,
     stars: 0,
     exposure: 0.95,
@@ -405,87 +265,9 @@ export const TIME_OF_DAY = {
   },
 }
 export const LIGHT = {
-  shadowRange: 40, // half-width of the sun's shadow box around the player
+  shadowRange: 48, // half-width of the sun's shadow box around the player
   lampColor: '#ffb35c',
   lampDistance: 22,
-}
-
-// --- Worlds (worlds.js, environment.js, city.js) -------------------------------------
-// One start island in two looks. The layout, colliders, shops, lanes, portal and races
-// are shared; a world only changes the scenery: ground, sea, sky, the far horizon, the
-// plaza's cliffs, the trees, the umbrella and the islet. The VIP portal on the plaza
-// (PLAZA.vip) moves the player between them: to a world with `req` once the player
-// has that many rebirths and that much Power (lightning) at the same time (after that
-// it stays open, saved by the server), back to the beach at any time.
-export const WORLDS = {
-  start: 'beach',
-  // Driving into this circle (radius m, `dz` m from the dais centre toward the spawn) uses the portal.
-  portal: { dz: -5.2, radius: 3.2, swapDelay: 0.12 }, // swapDelay: s into the white flash the world changes
-  list: {
-    beach: { name: 'Beach', sea: WATER.color, sky: TIME_OF_DAY },
-    city: {
-      name: 'City',
-      req: { rebirths: 10, power: 200 },
-      sea: '#1d78a6',
-      // Golden-hour skyline by day, neon purple by night (N).
-      sky: {
-        day: {
-          zenith: '#4560c4',
-          horizon: '#ffc4a0',
-          sunColor: '#ffd8b0',
-          sunIntensity: 2.2,
-          sunElevation: 26,
-          sunAzimuth: 35,
-          hemiSky: '#ffe2d2',
-          hemiGround: '#8e909a',
-          hemiIntensity: 0.8,
-          envIntensity: 0.5,
-          lampIntensity: 0,
-          stars: 0,
-          exposure: 0.95,
-        },
-        night: {
-          zenith: '#0b0724',
-          horizon: '#3c2860',
-          sunColor: '#b4acff',
-          sunIntensity: 0.5,
-          sunElevation: 38,
-          sunAzimuth: -60,
-          hemiSky: '#4a3c84',
-          hemiGround: '#1c1a26',
-          hemiIntensity: 0.4,
-          envIntensity: 0.3,
-          lampIntensity: 30,
-          stars: 0.45,
-          exposure: 1.15,
-        },
-      },
-    },
-  },
-}
-
-// The City look (city.js). Buildings stand on the beach's cliff footprints (PLAZA.cliffs, ISLET.rock)
-// with the same colliders; street trees and lamps take the palms' places.
-export const CITY = {
-  pavement: { base: '#d2cdc6', alt: '#c0bab2', joint: '#8a857e', tile: 16 }, // tile: m per texture tile (4x4 slabs)
-  slabSide: '#7e838d',
-  shallow: '#62c8da',
-  park: '#5a9f4a', // the islet's lawn
-  buildings: {
-    floor: 4, // m per storey (one row of windows); a window column every 2 m
-    walls: ['#f1e7d9', '#d9e3f1', '#f3d8ca', '#d0d9de', '#e9e1f3', '#c9d7ea', '#e8d2b8'],
-    glass: '#2b4f7e',
-    lit: '#ffd27a', // a lit window's glow
-    roof: '#5b606b',
-    podium: '#4a4f5a', // the shop floor along the foot of each block
-    rims: ['#ff4fd8', '#3ff0ff', '#ffd21a', '#7dff6a'], // neon along the roof edges
-    height: [1.5, 2.6], // a tower is this many times the cliff it replaces
-  },
-  // Far horizon: rings of towers instead of the beach's green hills.
-  skyline: { count: 54, distance: [270, 480], height: [45, 160], width: [18, 44], seed: 77 },
-  tree: { trunk: '#6e4b2c', leaf: '#3e9a3a', leafLight: '#79c94c', planter: '#9ba1ab' },
-  lamp: { pole: '#2a2d35', light: '#ffdca8' },
-  umbrella: ['#2a6fff', '#ffffff'],
 }
 
 // Default (fallback) character look, used only when player.glb cannot load.
@@ -534,140 +316,17 @@ export const TOUCH = {
   pinchPixelsPerNotch: 30, // finger spread change that equals one wheel notch
 }
 
-// --- Rebirth (rebirth.js) -------------------------------------------------------
-// A rebirth spends all energy (the lightning total) for a permanent boost.
-export const REBIRTH = {
-  baseCost: 400, // energy needed for the first rebirth
-  costGrowth: 1.75, // each rebirth costs this much more than the one before
-  boostPerRebirth: 10, // % boost gained per rebirth (training gains and race Wins, boosts.js)
-  startEnergy: 121, // a new player's lightning (the reference's 121 -> top speed 145)
-}
-
-// --- Training (training.js) ------------------------------------------------------------
-// Standing on an unlocked treadmill lane (PLAZA.trains: `req` Wins = trophies to
-// unlock, `power` lightning per tick) trains: every `tick` s it pays that power x
-// the train boost (boosts.js) in lightning, which is race speed (RACE.speedPerBolt)
-// and rebirth energy (one counter, rebirth.js). AUTO TRAIN pays `autoRate` of the
-// best unlocked lane anywhere, also mid-race. Driving onto a locked lane says what it needs.
-export const TRAIN = {
-  tick: 1,
-  autoRate: 0.5,
-  popupSeconds: 1.1, // the "+N" bolt floating off the boat
-}
-
-// --- Pets (pets.js) ----------------------------------------------------------------
-// Equipped pets add their multiplier above 1 to the boost (one 1.1x pet = 1.1x).
-export const PETS = {
-  equipSlots: 3, // pets equipped at once (the "1/3" counter)
-  storage: 100, // pets owned at most (the "1/100" counter)
-  craftCount: 5, // identical pets that Craft All turns into one of the next tier
-  starter: [], // a new player's pets (all equipped): none, every pet is hatched from eggs
-  // Pet kinds: name, multiplier, rarity (the portrait disc colour). Looks live in pets.js.
-  kinds: {
-    dog: { name: 'Doggy', mult: 1.1, rarity: 'common' },
-    cat: { name: 'Kitty', mult: 1.25, rarity: 'common' },
-    bunny: { name: 'Bunny', mult: 1.5, rarity: 'uncommon' },
-    bear: { name: 'Bear', mult: 2, rarity: 'uncommon' },
-    fox: { name: 'Fox', mult: 3, rarity: 'rare' },
-    panda: { name: 'Panda', mult: 5, rarity: 'epic' },
-    dragon: { name: 'Dragon', mult: 10, rarity: 'legendary' },
-    // Online Gifts rewards (gifts.js).
-    verdant: { name: 'Verdant Demon', mult: 15, rarity: 'legendary' },
-    greenfire: { name: 'Greenfire Demon', mult: 25, rarity: 'legendary' },
-    star: { name: 'Eternal Star', mult: 60, rarity: 'legendary' },
-    // Daily Reward pets (daily.js): Day 2's Ghost Axolotl and the Axolotl Egg's (DAILY.egg).
-    axolotl: { name: 'Axolotl', mult: 4, rarity: 'rare' },
-    blueAxolotl: { name: 'Blue Axolotl', mult: 8, rarity: 'epic' },
-    ghostAxolotl: { name: 'Ghost Axolotl', mult: 12, rarity: 'legendary' },
-    sunAxolotl: { name: 'Sun Axolotl', mult: 40, rarity: 'legendary' },
-    // Spin wheel jackpot (spin.js): the wheel's "250% HUGE" = +250% boost.
-    hugeDemon: { name: 'Huge Ruby Demon', mult: 3.5, rarity: 'legendary' },
-  },
-  // Craft tiers, in order; a tier multiplies the kind's multiplier.
-  tiers: [
-    { name: 'Normal', mult: 1 },
-    { name: 'Golden', mult: 2.5 },
-    { name: 'Rainbow', mult: 6 },
-  ],
-}
-
-// --- Pets + partner in the world (companions.js) ----------------------------------------
-// Equipped pets hover in these slots round the boat (boat frame: +Z = forward, metres; the
-// first ones beside the stern, the rest further back and higher), bobbing `bob` m and swinging
-// after turns (`turnLag` 1/s). The partner stands on the boat behind the rider.
-export const COMPANIONS = {
-  slots: [[-2.1, 0.9, -1.4], [2.1, 0.9, -1.4], [0, 1.4, -3.2], [-2.3, 1.4, -3.5], [2.3, 1.4, -3.5], [-1.2, 1.9, -4.8], [1.2, 1.9, -4.8], [0, 2.3, -5.6]],
-  petScale: 0.95,
-  hugeScale: 1.7, // 'huge…' pet kinds
-  bob: 0.14,
-  turnLag: 4,
-  partnerScale: 0.8,
-}
-
-// --- Online Gifts (gifts.js) -------------------------------------------------------
-// Play-time rewards. Order = grid order (4 per row). at = minutes online until the
-// gift can be claimed; the clock only runs while the game is open and visible, and
-// it starts over once every gift is claimed. type: 'bolt' | 'trophy' (n of them),
-// 'pet' (id = PETS.kinds key) or 'potion' (id = GIFTS.potions key). card = card
-// colour (grey by default), tag = the small rainbow text over a pet's name.
-export const GIFTS = {
-  list: [
-    { at: 1, type: 'bolt', n: 10 },
-    { at: 3, type: 'trophy', n: 10 },
-    { at: 5, type: 'bolt', n: 30 },
-    { at: 8, type: 'trophy', n: 50 },
-    { at: 10, type: 'bolt', n: 100 },
-    { at: 15, type: 'pet', id: 'verdant', card: 'yellow' },
-    { at: 20, type: 'bolt', n: 150, card: 'blue' },
-    { at: 25, type: 'potion', id: 'doubleWin', card: 'red' },
-    { at: 30, type: 'pet', id: 'greenfire', card: 'yellow' },
-    { at: 40, type: 'potion', id: 'superLuck', card: 'red' },
-    { at: 50, type: 'potion', id: 'golden', card: 'purple' },
-    { at: 60, type: 'pet', id: 'star', card: 'orange', tag: 'OP!' },
-  ],
-  // Potions are only counted for now (no potion effects yet). color = liquid.
-  potions: {
-    doubleWin: { name: 'Potion Double Win', color: '#e8262e', light: '#ff7a7a' },
-    superLuck: { name: 'Potion Super Luck', color: '#2fbf4a', light: '#8ff0a0' },
-    golden: { name: 'Potion Golden', color: '#ffb800', light: '#ffe88a' },
-    rainbow: { name: 'Potion Rainbow', color: '#b05cff', light: '#ffe14a', rainbow: true }, // Daily Reward day 6
-  },
-}
-
-// --- Daily Reward (daily.js) -------------------------------------------------------------
-// A 7-day calendar on the server's UTC clock (backend daily.ts, DAILY_DAYS): each new UTC
-// day the player plays unlocks the next day; unlocked days stay claimable (they need not be
-// consecutive) and once all 7 are claimed the next day starts over at Day 1. Claims are
-// decided by the server; the reward is granted when it says yes. type: 'trophy' (n Wins),
-// 'pet' (id = PETS.kinds key), 'potion' (id = GIFTS.potions key, only counted like the
-// gifts' ones), 'egg' (n free hatches of DAILY.egg). title = the card's heading; the last
-// day is the big card on the right.
-export const DAILY = {
-  autoOpen: 2.5, // s after joining that a claimable reward pops the window open (0 = never)
-  days: [
-    { type: 'trophy', n: 30, title: '30 Wins' },
-    { type: 'pet', id: 'ghostAxolotl', title: 'Ghost Axolotl' },
-    { type: 'trophy', n: 5e3, title: '5K Wins' },
-    { type: 'potion', id: 'golden', title: 'Golden Potion' },
-    { type: 'trophy', n: 20e3, title: '20K Wins' },
-    { type: 'potion', id: 'rainbow', title: 'Rainbow Potion' },
-    { type: 'egg', n: 4, title: 'Axolotl Egg' },
-  ],
-  // Day 7's egg (hatched for free through eggs.js's overlay): hatch weights by PETS kind.
-  egg: { name: 'Axolotl Egg', color: '#ff8a1a', pets: { axolotl: 60, blueAxolotl: 30, ghostAxolotl: 8, sunAxolotl: 2 } },
-}
-
 // --- Camera (camera.js) -------------------------------------------------------
 export const CAMERA = {
   fov: 70,
   near: 0.1,
   far: 1200,
-  startPitch: 0.14, // radians above the horizon (low chase cam, like the reference)
+  startPitch: 0.36, // radians above the horizon (raised chase cam, looking down on the plaza)
   minPitch: -0.35,
   maxPitch: 1.25,
   firstPersonPitch: 1.45, // |pitch| limit looking up/down in player mode
   eyeHeight: 0.92, // eye height as a fraction of player height (player mode)
-  distance: 12.4, // resting boom length, m
+  distance: 15, // resting boom length, m
   minDistance: 2.5, // wheel in past this enters player mode
   maxDistance: 26,
   followLerp: 14, // 1/s: the one smoothing stage, on the point the camera follows
@@ -688,7 +347,6 @@ export const SETTINGS = {
   camera_sensitivity: { def: '1', type: 'number', min: 0.1, max: 5 },
   show_fps: { def: 'false', type: 'bool' },
   fullscreen: { def: 'false', type: 'bool' },
-  sound_volume: { def: '0.8', type: 'number', min: 0, max: 1 }, // audio/core.js master level
 }
 
 // The base rig, measured from player.glb: origin at the feet, 6.4 units tall at bind pose.
@@ -766,6 +424,19 @@ export const ANIM = {
     },
     bobY: -0.2,
   },
+  // Riding your bike (Ride My Bike): seated, hands on the bars, legs pedalling.
+  ride: {
+    pose: {
+      Spine1: { x: deg(16) }, Neck1: { x: deg(-10) },
+      ArmL1: { x: deg(-62), z: deg(12) }, ArmR1: { x: deg(-62), z: deg(-12) },
+      ArmL2: { x: deg(18) }, ArmR2: { x: deg(18) },
+      LegL1: { x: deg(-72) }, LegR1: { x: deg(-72) }, LegL2: { x: deg(78) }, LegR2: { x: deg(78) },
+    },
+    pedalHip: deg(22),
+    pedalKnee: deg(26),
+    pedalDistance: 2.6, // m per pedal turn
+    transition: 0.18,
+  },
   transitions: { toLocomotion: 0.14, toAirborne: 0.12, toLanding: 0.06 }, // s to blend a pose change
 }
 
@@ -784,354 +455,4 @@ export function coerceSetting(key, raw) {
   if (spec.type === 'enum') return spec.values.includes(value) ? value : spec.def
   const n = Number(value)
   return clamp(Number.isFinite(n) ? n : Number(spec.def), spec.min, spec.max)
-}
-
-// --- HUD (hud.js) ------------------------------------------------------------
-// Layout is authored in pixels of the 1920x992 reference screenshot and scaled
-// by --u = clamp(min(w / design.w, h / design.h), minScale, maxScale).
-export const HUD = {
-  design: { w: 1920, h: 992 },
-  minScale: 0.46,
-  maxScale: 1.25,
-  stats: { trophies: 433, wins: 121, gems: 0 }, // a new player's values; `wins` (lightning) mirrors the rebirth energy
-  rollMs: 450, // a counter rolls to its new value over this long
-  chatUnread: 3,
-  dailyGems: 9,
-  boosts: { friends: 0, playtime: 2 }, // percent shown bottom-left
-  // Race distance milestones: one row per zoom level, the bottom row is the
-  // finest (0..2K), then 2K..13K, then 13K..the finish (RACE.finish, 2.5M). `to` = distance at the
-  // segment's right edge, `at` = that edge in reference pixels (bar spans
-  // 438..1482, the bottom row starts at 462 after the player's head at 440).
-  progress: [
-    [
-      { label: '30K', to: 30000, color: '#8f3dff', at: 560 },
-      { label: '100K', to: 100000, color: '#b13dff', at: 760 },
-      { label: '500K', to: 500000, color: '#d83dff', at: 1010 },
-      { label: '1M', to: 1000000, color: '#ff3dd8', at: 1230 },
-      { label: '2.5M', to: 2500000, color: '#ffd23d', at: 1482 },
-    ],
-    [
-      { label: '3K', to: 3000, color: '#ffff00', at: 710 },
-      { label: '7K', to: 7000, color: '#1a3cff', at: 1088 },
-      { label: '13K', to: 13000, color: '#ff2a1a', at: 1482 },
-    ],
-    [
-      { label: '3', to: 3, color: '#ff2a1a', at: 487 },
-      { label: '4', to: 4, color: '#1a3cff', at: 528 },
-      { label: '5', to: 5, color: '#2a62ff', at: 580 },
-      { label: '10', to: 10, color: '#4dff7a', at: 650 },
-      { label: '25', to: 25, color: '#6dffc9', at: 730 },
-      { label: '50', to: 50, color: '#ff9ade', at: 830 },
-      { label: '100', to: 100, color: '#3a3a3a', at: 945 },
-      { label: '500', to: 500, color: '#ff9500', at: 1073 },
-      { label: '1K', to: 1000, color: '#0a9a1a', at: 1250 },
-      { label: '2K', to: 2000, color: '#ff38ff', at: 1482 },
-    ],
-  ],
-  // Cartoon heads (head() in hudIcons) for remote racers until (or unless) their Bloxity
-  // profile picture loads; each racer gets one picked from its session id.
-  racerLooks: [
-    { skin: '#a7adb5', hair: '#2a2a33', style: 'ears' },
-    { skin: '#f4dccb', hair: '#1d1d24', style: 'long' },
-    { skin: '#f6e3cf', hair: '#7a3e1a', style: 'short' },
-    { skin: '#c98f5f', hair: '#1e7a3a', style: 'cap' },
-    { skin: '#f2c79a', hair: '#5a2f12', style: 'short' },
-    { skin: '#3a3a44', hair: '#141418', style: 'bald' },
-  ],
-}
-
-// --- Race (race.js) ----------------------------------------------------------------
-// Driving through the START gate starts a race: the boat drives itself down the
-// buoy lane (A/D or the joystick steer inside it) until `duration` runs out or
-// the player taps Leave. Speeds and distances are in studs; the world moves
-// `metresPerStud` m per stud. Top speed = (baseSpeed + speedPerBolt * lightning)
-// x the Acc speed boost (121 bolts -> 145 before boosts, like the reference). Past `cruiseZ` the boat stays put and the
-// lane, sea and trail scroll instead (the sea is only WATER.size wide).
-export const RACE = {
-  baseSpeed: 24,
-  speedPerBolt: 1,
-  // Acc (engine x boat engines + boat + partner + trail, boosts.js) also raises top
-  // speed: x (1 + accSpeed x acc %). 1 = a "+50% Acc" card is +50% speed; 0 = acceleration only.
-  accSpeed: 1,
-  // Luck (boat + partner) gives each checkpoint a chance of paying double ("LUCKY x2"):
-  // luck / (luck + half), at most `max` (20% luck -> 9%, 200% -> 50%).
-  luck: { half: 200, max: 0.75 },
-  accelTime: 5, // s from 0 to top speed (shortened by the acc boost, boosts.js)
-  metresPerStud: 0.35,
-  cruiseZ: -130,
-  // The race ends at the finish line (or on Leave): `finish` studs down the lane. A new player
-  // tops out at 262 studs/s (145 x the starter gear's +81%), 341 with the tap boost held full,
-  // so 2.5M studs is at least 2 h of racing (~2.65 h without tapping).
-  finish: 2.5e6,
-  steerSpeed: 12, // m/s sideways at full stick
-  laneMargin: 3, // m kept clear of the ropes
-  lane: { length: 700, buoySpacing: 1.9, stripe: 1.9 }, // race lane past the gate (replaces the lobby's ropes while racing)
-  // Scenery streaming past the lane (raceScenery.js): set pieces built once and recycled. One comes
-  // every `gap` m (random in the range, mostly alternating sides) from `first` m past the gate; each
-  // appears `ahead` m in front of the boat (inside the fog) and is recycled `behind` m behind it. An
-  // arch spans the lane every `archEvery` m from `archFirst`. Per kind: `weight` (how often it comes up),
-  // `x` = distance from the lane's centre line (m, either side), `y` = height (balloons).
-  // The start island slides away with the scroll and is hidden once `homeHide` m gone (past the fog).
-  scenery: {
-    first: 150,
-    gap: [34, 60],
-    ahead: 720,
-    behind: 260,
-    archFirst: 420,
-    archEvery: 700,
-    homeHide: 650,
-    kinds: {
-      island: { weight: 5, x: [72, 160] },
-      stack: { weight: 3, x: [40, 95] },
-      ship: { weight: 4, x: [44, 105] },
-      lighthouse: { weight: 1.4, x: [42, 80] },
-      balloon: { weight: 2, x: [22, 90], y: [30, 58] },
-      duck: { weight: 1, x: [32, 60] },
-      dolphins: { weight: 2.5, x: [25, 31] },
-    },
-    // Anchored ships: catalog boat id and length (m).
-    ships: [['pirateShip', 30], ['blackGalleon', 34], ['sailingShipBig', 32], ['woodenSailboat', 18], ['harborFerry', 22], ['navyYacht', 20]],
-    balloons: [['#ff3b3b', '#ffe11a'], ['#2f9df0', '#ffffff'], ['#a01aff', '#3ff0d0', '#ffb21a'], ['#22d34a', '#ffffff', '#ff4a1a']],
-    rainbow: ['#ff2a2a', '#ff8a1a', '#ffe11a', '#22d34a', '#1a9cff', '#3a3cff', '#a01aff'],
-  },
-  // Chase cam: behind and above, looking a little down the lane.
-  // `compact` (portrait, or under compactHeight px tall) looks further down so the boat sits above the speedometer.
-  // `orbit`: drag (mouse, or the touch look zone) swings the cam around the boat at `pivot` m above
-  // it; pitch is the boom's angle above the horizon, kept in min..max (min keeps it above the water).
-  camera: { distance: 13, height: 5.2, lookAhead: 14, lookHeight: 0.6, fov: 72, speedFov: 14, follow: 8, compactHeight: 500, compact: { distance: 15, height: 6.5, lookHeight: -4.5 }, orbit: { pivot: 1.2, minPitch: 0.06, maxPitch: 1.2 } },
-  // Checkpoints: pale see-through walls across the lane (the last one passed +
-  // the next `ahead - 1` are drawn). Spacing is picked per race from the top
-  // speed: the `steps` value nearest (in log) to topSpeed x `seconds`, so one
-  // comes every ~7 s at any speed (145 -> every 1K, like the reference); the
-  // `early` distances below that step come first. A regular checkpoint pays
-  // floor(studs x step / 1M) Wins, at least 1 (9K with a 1K step -> +9, like the
-  // reference; total ~ distance^2 / 2M whatever the step), an early one 1. The studs in that
-  // formula stop growing at top speed x `paySeconds`, so past there every checkpoint pays the
-  // same and Wins come in at a steady rate: 45 s matches the old 90 s races back to back
-  // (Wins per hour ~ 45 x speed^2 x 3600 / 1M at any speed; a new player's 2.5M-stud race ~29K),
-  // instead of growing with the square of a 2 h race's distance,
-  // x the Wins boost (boosts.js): a trophy "+N" pops by the studs callout, `trophies` trophy icons
-  // fly from the boat into the trophy counter (each adds its share as it lands)
-  // and confetti rains down (`confetti` pieces, `confettiTouch` on touch screens).
-  checkpoint: { early: [10, 25, 50, 100, 250, 500], seconds: 7, paySeconds: 45, steps: [100, 250, 500, 1e3, 2.5e3, 5e3, 1e4, 2.5e4, 5e4, 1e5, 2.5e5, 5e5, 1e6], ahead: 4, wallHeight: 36, color: '#e4fbff', opacity: 0.5 },
-  reward: { trophies: [3, 7], flight: 1.15, stagger: 0.09, popup: 2.2, confetti: 70, confettiTouch: 36, colors: ['#ff2a2a', '#ffe11a', '#22d34a', '#1a3cff'] },
-  gauge: ['#3ff0d0', '#5fe84a', '#d8f23a', '#ffb21a', '#ff4a1a', '#e81a3a', '#a01aff'], // speedometer arc, slow -> fast
-  resultSeconds: 3.2, // how long the race result stays up
-  // Tap to boost: every tap / click / Space / touch JUMP mid-race adds `perTap`
-  // to a boost (capped at `max`) that fades by `decay` of itself per second, so
-  // ~3 taps/s holds +15% and ~6 taps/s the full +30%. Speed = top-speed curve x (1 + boost).
-  tap: { perTap: 0.04, max: 0.3, decay: 0.8 },
-  // Personal best (saved by the server, net.js): a BEST flag on the distance bar, "NEW RECORD!"
-  // when a race passes it, and `bonus` x that race's Wins (at least 1) on top.
-  best: { bonus: 0.2 },
-}
-
-// --- Engines (engine.js) ----------------------------------------------------------
-// The Engine window's catalog. Everything but the free Basic Engine is bought with
-// Wins (the HUD's trophy counter). Grid order: the three gem engines (red NEW
-// cards), the Basic Engine, then the 30-engine ladder, one card colour per row of 4.
-// stats are % boosts: wins, acc (boat acceleration), train (training gains).
-// look colours the card art: kind 'rocket' | 'missile' | 'jet' | 'ship' | 'satellite'.
-export const ENGINE = {
-  starter: {
-    id: 'basic',
-    name: 'Basic Engine',
-    stats: { wins: 6, acc: 11, train: 6 },
-    look: { kind: 'rocket', body: '#f4f7f6', band: '#2fd05a', nose: '#f4f7f6', fin: '#e2e8e6', flame: '#3fc8ff' },
-  },
-  // Gem engines cost what a ladder engine with the same Wins boost would cost
-  // (gemPrice in engine.js): Galactic 200M, Blaze 1.9Qa and Cyan Volt, past the
-  // top of the ladder, 36Oc. Set `price` on one to override.
-  gemTier: '#ff5d3a',
-  gems: [
-    { id: 'galactic', name: 'Galactic Thruster', stats: { wins: 55, acc: 105, train: 55 }, look: { kind: 'rocket', body: '#f6f8fb', band: '#ff3b3b', nose: '#ff3b3b', fin: '#2f6bff', flame: '#ff4fd8' } },
-    { id: 'blaze', name: 'Blaze Drift', stats: { wins: 105, acc: 205, train: 105 }, look: { kind: 'jet', body: '#1b1b20', band: '#ff2a2a', nose: '#ff2a2a', fin: '#26262c', flame: '#ffb02e' } },
-    { id: 'cyanvolt', name: 'Cyan Volt', stats: { wins: 200, acc: 355, train: 200 }, look: { kind: 'ship', body: '#eef6ff', band: '#3aa6ff', nose: '#20242c', fin: '#e63a3a', flame: '#5fd8ff' } },
-  ],
-  // Ladder engine k (1..30): price = firstPrice * priceGrowth^(k-1), rounded to 2
-  // significant digits (100, 500, 2.5K, 13K, ... 4.8Sx, 24Sx); wins and train
-  // boosts = winsStep * (k+1) % (10% ... 155%), acc = twice that.
-  ladder: {
-    firstPrice: 100,
-    priceGrowth: 5,
-    winsStep: 5,
-    tiers: ['#c9c9c9', '#69d36b', '#4cb6ff', '#ff6fc8', '#ff4a4a', '#ffc81a', '#a51cff'], // card colour per row of 4 (the last repeats)
-    engines: [
-      { name: 'Red Rocket', look: { body: '#2e2f38', band: '#ff4141', nose: '#f2f2f2', fin: '#8a1d1d' } },
-      { name: 'Blue Rocket', look: { body: '#24304f', band: '#4f7dff', nose: '#c9d6ff', fin: '#1b2850' } },
-      { name: 'Olive Rocket', look: { body: '#5e5a1e', band: '#c9b832', nose: '#d8cc5a', fin: '#403d12' } },
-      { name: 'Violet Rocket', look: { body: '#2c2448', band: '#8a5cff', nose: '#b49aff', fin: '#1d1733' } },
-      { name: 'Navy Booster', look: { body: '#1f2b4d', band: '#3d5aa8', nose: '#2b3c6d', fin: '#141d36' } },
-      { name: 'Camo Booster', look: { body: '#5c5a3c', band: '#8b8a5a', nose: '#3e3d28', fin: '#2f2e1e', camo: true } },
-      { name: 'Crimson Booster', look: { body: '#d9d6d6', band: '#d62b2b', nose: '#b51f1f', fin: '#7d1414' } },
-      { name: 'Jade Booster', look: { body: '#2c3a33', band: '#2fae5d', nose: '#1f7a40', fin: '#1a2620' } },
-      { name: 'Sky Thruster', look: { body: '#e8f6ff', band: '#38b4ff', nose: '#38b4ff', fin: '#1f78c4' } },
-      { name: 'Frost Thruster', look: { body: '#d5f3ff', band: '#8ee7ff', nose: '#ffffff', fin: '#5cb8d8', flame: '#9af0ff' } },
-      { name: 'Tidal Thruster', look: { body: '#0d4f78', band: '#20d1ff', nose: '#0a3350', fin: '#073049', flame: '#20d1ff' } },
-      { name: 'Storm Thruster', look: { body: '#39405a', band: '#ffe03a', nose: '#ffe03a', fin: '#232838', flame: '#ffe96a' } },
-      { name: 'Candy Drive', look: { body: '#ffffff', band: '#ff4fa8', nose: '#ff4fa8', fin: '#c4307a', flame: '#ff8fd0' } },
-      { name: 'Nebula Drive', look: { body: '#3a1d63', band: '#d06bff', nose: '#ff8af3', fin: '#24103f', flame: '#e58aff' } },
-      { name: 'Plasma Drive', look: { body: '#4a1a6e', band: '#ff4fd8', nose: '#ffffff', fin: '#2d0f45', flame: '#ff6af0' } },
-      { name: 'Quasar Drive', look: { body: '#f4ecff', band: '#9b4dff', nose: '#c08bff', fin: '#6a2ad1', flame: '#c9a2ff' } },
-      { name: 'Ember Jet', look: { kind: 'jet', body: '#3a2a26', band: '#ff7a2e', nose: '#ff7a2e', fin: '#5a3a30', flame: '#ffb02e' } },
-      { name: 'Magma Jet', look: { kind: 'jet', body: '#2a1c1c', band: '#ffcf3a', nose: '#ff4a1a', fin: '#7a1f12', flame: '#ff6a2e' } },
-      { name: 'Inferno Jet', look: { kind: 'jet', body: '#d9d6d6', band: '#d62b2b', nose: '#d62b2b', fin: '#9a1a1a', flame: '#ff8a2e' } },
-      { name: 'Volcano Jet', look: { kind: 'jet', body: '#141414', band: '#ff3a1a', nose: '#ffcf3a', fin: '#3a1410', flame: '#ff5a1a' } },
-      { name: 'Sun Missile', look: { kind: 'missile', body: '#6a1e18', band: '#ffcf3a', nose: '#9a2a20', fin: '#3a0f0c' } },
-      { name: 'Bronze Missile', look: { kind: 'missile', body: '#7a4a2a', band: '#c98a4a', nose: '#3a2418', fin: '#4a2a18' } },
-      { name: 'Checker Missile', look: { kind: 'missile', body: '#5a1a1a', band: '#f2f2f2', nose: '#2a2a2a', fin: '#1d1d1d', checker: true } },
-      { name: 'Shadow Missile', look: { kind: 'missile', body: '#1d1d24', band: '#3a3a46', nose: '#2a2a33', fin: '#101015' } },
-      { name: 'Rust Orbiter', look: { kind: 'satellite', body: '#8a3a2a', band: '#c96a4a', nose: '#e8e0d8', fin: '#4a1f18', flame: '#ffb07a' } },
-      { name: 'Night Orbiter', look: { kind: 'satellite', body: '#1d1d24', band: '#3a3a46', nose: '#c9d1d9', fin: '#1f2b6d', flame: '#9ab8ff' } },
-      { name: 'Bee Orbiter', look: { kind: 'satellite', body: '#ffcf1a', band: '#1d1d24', nose: '#e8e8e8', fin: '#2a4fb8', flame: '#ffe96a' } },
-      { name: 'Void Orbiter', look: { kind: 'satellite', body: '#2a1446', band: '#5a2a8a', nose: '#3a2a55', fin: '#2a1a4a', flame: '#c9a2ff' } },
-      { name: 'Horn Satellite', look: { kind: 'satellite', body: '#1d4a4a', band: '#2a2a33', nose: '#1d1d24', fin: '#1f2f6d', flame: '#7affe0' } },
-      { name: 'Wave Point Thruster', look: { kind: 'satellite', body: '#f2f4f8', band: '#ff8fb0', nose: '#f2f4f8', fin: '#2f6bdc', flame: '#ffffff' } },
-    ],
-  },
-}
-
-// --- Partners (partner.js) ----------------------------------------------------------
-// The Partner window's catalog, in grid order (rows of 4). Nothing is free: every
-// partner is bought with Wins (the HUD's trophy counter). The first row are the
-// premium partners (red NEW ribbon), priced by performance against the ladder
-// below them (whose prices grow ~8x per step). stats are % boosts: wins, luck,
-// acc (boat acceleration). tint colours the name in the side panel. look
-// dresses the blocky portrait (partner.js): hair/hat, face, shirt pattern, colours.
-export const PARTNER = {
-  featured: 'hacker', // shown when the window opens
-  partners: [
-    // Premium row (the reference's Robux 49 / 699 / 1999 / 4999 partners).
-    { id: 'jester', name: 'Jester', price: 85e9, isNew: true, tint: '#ff9ad5', stats: { wins: 120, luck: 80, acc: 115 }, look: { skin: '#fff1ea', hair: 'pigtails', hairColor: '#e9e4dc', tipA: '#ff5fa2', tipB: '#5fb8ff', face: 'clown', shirt: 'stripes', color: '#e8eef5', color2: '#d9263a', pants: '#2b3fa8', pants2: '#d9263a' } },
-    { id: 'batman', name: 'Batman', price: 12e15, isNew: true, tint: '#ffd400', stats: { wins: 340, luck: 230, acc: 330 }, look: { hat: 'cowl', hatColor: '#26262e', shirt: 'emblem', color: '#33343d', color2: '#ffd23a', arms: '#26262e', pants: '#26262e', cape: '#1d1d23' } },
-    { id: 'hacker', name: 'Hacker', price: 800e15, isNew: true, tint: '#f59dff', stats: { wins: 500, luck: 340, acc: 490 }, look: { skin: '#fff1ea', hair: 'pigtails', hairColor: '#f4f1ec', tipA: '#ff4f86', tipB: '#3f8bff', face: 'clown', shirt: 'stripes', color: '#f4f4f4', color2: '#e3263a', pants: '#e3263a', pants2: '#2846c8' } },
-    { id: 'darkknight', name: 'Dark Knight', price: 80e18, isNew: true, tint: '#b9a7ff', stats: { wins: 750, luck: 510, acc: 730 }, look: { hat: 'cowl', hatColor: '#141418', shirt: 'armor', color: '#1d1d23', color2: '#4a4a55', arms: '#141418', pants: '#141418', cape: '#0e0e12' } },
-    // Ladder.
-    { id: 'prisoner', name: 'Prisoner', price: 100, tint: '#ffa31a', stats: { wins: 30, luck: 20, acc: 20 }, look: { hair: 'short', hairColor: '#6b3d1f', shirt: 'jumpsuit', color: '#ff8a1f', color2: '#fff', pants: '#ff8a1f' } },
-    { id: 'police', name: 'Police', price: 2e3, tint: '#7fc4ff', stats: { wins: 35, luck: 25, acc: 25 }, look: { hat: 'police', hatColor: '#1d2c5e', shirt: 'police', color: '#2f63c8', color2: '#ffd23a', pants: '#1d2c5e' } },
-    { id: 'courier', name: 'Courier', price: 80e3, tint: '#ffd400', stats: { wins: 45, luck: 30, acc: 30 }, look: { skin: '#ffd23a', hat: 'cap', hatColor: '#e3263a', shirt: 'bands', color: '#ffd23a', color2: '#1d1d23', arms: '#1d1d23', pants: '#1d1d23' } },
-    { id: 'robber', name: 'Robber', price: 2.4e6, tint: '#d0d0d8', stats: { wins: 55, luck: 35, acc: 35 }, look: { hat: 'balaclava', hatColor: '#1d1d23', shirt: 'hoodie', color: '#2a2a31', color2: '#3d3d46', pants: '#1d1d23', bat: true } },
-    { id: 'builder', name: 'Builder', price: 48e6, tint: '#ffc21a', stats: { wins: 65, luck: 40, acc: 45 }, look: { hat: 'hardhat', hatColor: '#c98a2a', face: 'shades', shirt: 'vest', color: '#2f4f86', color2: '#ff8a1f', pants: '#2b3550' } },
-    { id: 'detective', name: 'Detective', price: 480e6, tint: '#e0b77a', stats: { wins: 75, luck: 50, acc: 55 }, look: { hair: 'swept', hairColor: '#1d1d23', shirt: 'jacket', color: '#b08a4a', color2: '#1d1d23', pants: '#2a2a31' } },
-    { id: 'pinkmask', name: 'Pink Mask', price: 3.8e9, tint: '#ff7ab8', stats: { wins: 90, luck: 60, acc: 70 }, look: { hat: 'mask', hatColor: '#1d1d23', hood: '#e0337a', shirt: 'suit', color: '#e0337a', color2: '#b5205e', pants: '#e0337a' } },
-    { id: 'soldier', name: 'Soldier', price: 30e9, tint: '#c7ccd4', stats: { wins: 110, luck: 70, acc: 85 }, look: { hair: 'short', hairColor: '#2a2a31', shirt: 'camo', color: '#8a8f96', color2: '#5d6168', pants: '#5d6168' } },
-    { id: 'glitch', name: 'Glitch', price: 240e9, tint: '#5dff6a', stats: { wins: 130, luck: 85, acc: 105 }, look: { skin: '#123d18', hat: 'fedora', hatColor: '#0f3313', face: 'code', shirt: 'code', color: '#0f3313', color2: '#3dff5a', arms: '#0f3313', pants: '#0f3313' } },
-    { id: 'superhero', name: 'Superhero', price: 1.9e12, tint: '#6fa8ff', stats: { wins: 160, luck: 105, acc: 130 }, look: { hair: 'swept', hairColor: '#15151a', shirt: 'hero', color: '#2456d6', color2: '#e3263a', pants: '#2456d6', cape: '#e3263a', armsUp: true } },
-    { id: 'mechanic', name: 'Mechanic', price: 15e12, tint: '#ffd400', stats: { wins: 190, luck: 125, acc: 160 }, look: { skin: '#ffd23a', hat: 'cap', hatColor: '#d9263a', shirt: 'bands', color: '#2a2a31', color2: '#ffd23a', arms: '#ffd23a', pants: '#2a2a31' } },
-    { id: 'bandit', name: 'Bandit', price: 120e12, tint: '#d0d0d8', stats: { wins: 230, luck: 150, acc: 195 }, look: { hat: 'balaclava', hatColor: '#141418', shirt: 'hoodie', color: '#1d1d23', color2: '#4a4a55', pants: '#141418', bat: true } },
-    { id: 'foreman', name: 'Foreman', price: 1e15, tint: '#ffc21a', stats: { wins: 270, luck: 180, acc: 240 }, look: { hat: 'hardhat', hatColor: '#ffc21a', face: 'shades', shirt: 'vest', color: '#1f3a6b', color2: '#ffd400', pants: '#1d2c5e' } },
-    { id: 'spy', name: 'Spy', price: 8e15, tint: '#e0b77a', stats: { wins: 330, luck: 220, acc: 300 }, look: { hair: 'swept', hairColor: '#1d1d23', face: 'shades', shirt: 'jacket', color: '#2a2a31', color2: '#d9263a', pants: '#1d1d23' } },
-    { id: 'commander', name: 'Commander', price: 64e15, tint: '#ff7ab8', stats: { wins: 400, luck: 265, acc: 380 }, look: { hat: 'mask', hatColor: '#141418', hood: '#141418', shirt: 'suit', color: '#1d1d23', color2: '#e0337a', pants: '#1d1d23' } },
-    { id: 'guard', name: 'Guard', price: 500e15, tint: '#f2b45a', stats: { wins: 480, luck: 320, acc: 470 }, look: { hair: 'short', hairColor: '#15151a', shirt: 'labcoat', color: '#f2f4f6', color2: '#8fd8d2', arms: '#f2f4f6', pants: '#8fd8d2', clipboard: true } },
-  ],
-}
-
-// --- Trails (trails.js scene, trail.js ribbon) -------------------------------------
-// The whole Trails catalog, in grid order (3 per row), as in the reference
-// shots. White is free from the start; every other trail is bought with Wins.
-// Its price comes from its benefit (pricing below), so a stronger trail always
-// costs more: Red ~800, Orange ~3K ... Water Ripple ~2.5Qa, and the four gold
-// "gem" cards (premium art, no rebirth needed) sit on the same curve by their
-// boosts. rebirth: N = can only be bought from N rebirths on. stats are % boosts.
-// look: the ribbon (trail.js) and card art: color tints it; texture names a
-// painter in trailTextures.js (also used for the card + swatch picture); art
-// names a card drawing in trails.js (gold cards); add = additive glow; width
-// (m) and tile (m per texture repeat) override the ribbon defaults.
-export const TRAILS = {
-  start: { owned: ['white'], equipped: 'white' },
-  // price = base * (average boost / benefit)^power, rounded to 2 significant digits.
-  pricing: { base: 800, benefit: 60, power: 8.5 },
-  list: [
-    { id: 'ghost', name: 'Ghost', gold: true, stats: { wins: 5000, acc: 5000 }, look: { art: 'ghost', texture: 'wisps', add: true, width: 0.9, tile: 3.5 } },
-    { id: 'magma', name: 'Magma', gold: true, stats: { wins: 3100, acc: 3000 }, look: { texture: 'magma' } },
-    { id: 'soundWave', name: 'Sound Wave', gold: true, stats: { wins: 1750, acc: 1500 }, look: { art: 'wave', texture: 'soundwave', width: 0.75, tile: 3 } },
-    { id: 'musicalNote', name: 'Musical Note', gold: true, stats: { wins: 850, acc: 900 }, look: { art: 'notes', texture: 'notes', width: 0.62, tile: 3.2 } },
-    { id: 'white', name: 'White', stats: { wins: 50, acc: 50 }, look: { color: '#ffffff' } },
-    { id: 'red', name: 'Red', stats: { wins: 60, acc: 60 }, look: { color: '#ff1414' } },
-    { id: 'orange', name: 'Orange', stats: { wins: 70, acc: 70 }, look: { color: '#ff7c00' } },
-    { id: 'olive', name: 'Olive', rebirth: 5, stats: { wins: 80, acc: 85 }, look: { color: '#d6c51a' } },
-    { id: 'green', name: 'Green', rebirth: 5, stats: { wins: 90, acc: 95 }, look: { color: '#1bc41b' } },
-    { id: 'teal', name: 'Teal', rebirth: 5, stats: { wins: 110, acc: 100 }, look: { color: '#16c9a0' } },
-    { id: 'blue', name: 'Blue', rebirth: 10, stats: { wins: 120, acc: 130 }, look: { color: '#2140ff' } },
-    { id: 'purple', name: 'Purple', rebirth: 10, stats: { wins: 140, acc: 145 }, look: { color: '#9a1cff' } },
-    { id: 'sage', name: 'Sage', rebirth: 10, stats: { wins: 175, acc: 155 }, look: { color: '#8fd08a' } },
-    { id: 'navy', name: 'Navy', rebirth: 15, stats: { wins: 180, acc: 200 }, look: { color: '#3048d0' } },
-    { id: 'mauve', name: 'Mauve', rebirth: 15, stats: { wins: 220, acc: 220 }, look: { color: '#b85cc8' } },
-    { id: 'circuit', name: 'Circuit', rebirth: 25, stats: { wins: 270, acc: 235 }, look: { texture: 'circuit' } },
-    { id: 'rainbow', name: 'Rainbow', rebirth: 30, stats: { wins: 280, acc: 310 }, look: { texture: 'rainbow' } },
-    { id: 'orbit', name: 'Orbit', rebirth: 30, stats: { wins: 340, acc: 350 }, look: { texture: 'orbit' } },
-    { id: 'carpet', name: 'Royal Carpet', rebirth: 30, stats: { wins: 420, acc: 370 }, look: { texture: 'carpet' } },
-    { id: 'matrix', name: 'Matrix', rebirth: 35, stats: { wins: 430, acc: 480 }, look: { texture: 'matrix' } },
-    { id: 'paws', name: 'Paw Prints', rebirth: 35, stats: { wins: 520, acc: 530 }, look: { texture: 'paws' } },
-    { id: 'runes', name: 'Ancient Runes', rebirth: 35, stats: { wins: 650, acc: 570 }, look: { texture: 'runes' } },
-    { id: 'abyss', name: 'Abyss', rebirth: 40, stats: { wins: 660, acc: 750 }, look: { texture: 'abyss' } },
-    { id: 'film', name: 'Film Reel', rebirth: 40, stats: { wins: 810, acc: 820 }, look: { texture: 'film' } },
-    { id: 'honeycomb', name: 'Honeycomb', rebirth: 40, stats: { wins: 1010, acc: 880 }, look: { texture: 'honeycomb' } },
-    { id: 'skeleton', name: 'Skeleton', rebirth: 45, stats: { wins: 1020, acc: 1150 }, look: { texture: 'skeleton' } },
-    { id: 'bubbles', name: 'Bubbles', rebirth: 45, stats: { wins: 1250, acc: 1260 }, look: { texture: 'bubbles' } },
-    { id: 'toxic', name: 'Toxic', rebirth: 45, stats: { wins: 1500, acc: 1400 }, look: { texture: 'toxic' } },
-    { id: 'waterRipple', name: 'Water Ripple', rebirth: 50, stats: { wins: 1550, acc: 1840 }, look: { texture: 'ripple', add: true } },
-  ],
-  // The ribbon behind the boat (trail.js): a band fed from the stern that turns
-  // to face the camera (upright seen from the side, flat on the water from
-  // behind), fading out over its life. width/tile are the defaults per look.
-  ribbon: { points: 72, life: 0.9, spacing: 0.35, width: 0.6, tile: 2.4, opacity: 0.95, height: 0.14, stern: 1.45 },
-  // The scene's showcase: the boat parked in the sea off the east wing, broadside
-  // to a low camera that looks back at the beach and cliffs (like the reference).
-  // view = horizontal direction the camera looks; the boat faces the camera's right.
-  showcase: { x: 57, z: -18.5, y: -0.72, view: [-0.795, 0.607], speed: 24, distance: 4.6, height: 0.95, boatWidth: 0.25, portraitBoatWidth: 0.62, portraitRaise: 0.3 },
-}
-
-// --- Audio (src/audio/) ---------------------------------------------------------------
-// Everything is synthesised at runtime (no sound files). volume = default master
-// level (the portal's sound_volume setting overrides it; M mutes, saved under storageKey).
-export const AUDIO = {
-  volume: 0.8,
-  storageKey: 'boat-race-99.sound',
-  buses: { ui: 0.8, sfx: 0.9, amb: 0.55, engine: 0.5 }, // per-bus levels before the master
-  duck: 0.45, // world (ambience + engine) level while a menu window is open
-  maxVoices: 48, // one-shot sounds at once before low-priority ones are skipped
-  maxVoicesTouch: 24,
-  // Output buffer (s, the AudioContext latencyHint): 'interactive' (~10 ms) crackles and drops out
-  // whenever a window open or a shader compile hogs the CPU; this much headroom rides those out.
-  // lead = s every one-shot is scheduled ahead, so a short main-thread stall doesn't clip its start.
-  latency: 0.04,
-  latencyTouch: 0.07,
-  lead: 0.02,
-  // Generated impulse response: pre-delay s, early reflections [ms, gain], tail decay s (to -60 dB),
-  // tail level, how fast the tail darkens, and the default send level.
-  reverb: { seconds: 1.8, preDelay: 0.012, early: [[19, 0.5], [31, 0.35], [47, 0.28], [73, 0.2], [97, 0.12]], decay: 1.4, tail: 0.18, darken: 1.6, send: 0.9 },
-  // The boat (audio/engine.js): rpm at idle / flat out, layer levels; idleLevel = mix level standing
-  // still in the lobby, settle = racing level once the speed is steady, eased to over settleTime s.
-  engine: { idle: 720, max: 4800, motor: 0.45, roar: 0.2, rumble: 0.1, wash: 0, spray: 0, slap: 0.2, sand: 0.06, idleLevel: 0.3, settle: 0.62, settleTime: 4 },
-  // The beach (audio/ambience.js): scheduler tick s, layer levels, foam bubbles per second of a
-  // receding wave, gull call gap range s, crickets [Hz, pan], waterfall level and the distance (m)
-  // at which it is at half level.
-  ambience: { tick: 0.25, foam: 16, foamTouch: 7, gull: 0.05, gullEvery: [14, 34], cricket: 0.025, crickets: [[4400, -0.6], [4750, 0.5], [5100, 0.1]], waterfall: 0.55, waterfallNear: 16 },
-}
-
-// --- UI juice (juice.js) -------------------------------------------------------------
-// Particles per burst kind, the touch-screen scale on those counts, and how many grid
-// cards cascade in when a window opens.
-export const JUICE = { coins: 16, stars: 18, sparks: 12, big: 40, touchScale: 0.55, cascade: 28 }
-
-// --- Spin wheel (spin.js) ---------------------------------------------------------------
-// The server owns the spins and rolls every spin (backend spin.ts + constants.ts SPIN_*): keep
-// freeEvery / cap and the wedge ids in step with it. One free spin every `freeEvery` minutes
-// (real time, also offline) until `cap` are stored. Wedges clockwise from the pointer, each 72
-// degrees; `chance` is only the label (the server's weights decide). Prize: type 'trophy' (n
-// Wins), 'potion' (id = GIFTS.potions key, counted like the gift potions) or 'pet' (PETS kind).
-export const SPIN = {
-  freeEvery: 15,
-  cap: 5,
-  turns: 6, // full turns before it lands
-  seconds: 5.2, // spin length
-  timeout: 6, // s to wait for the server's answer
-  wedges: [
-    { id: 'doubleWins', chance: '35%', type: 'potion', potion: 'doubleWin', label: 'x2 WINS', color: '#ff6b6b', dark: '#d94848' },
-    { id: 'wins50', chance: '25%', type: 'trophy', n: 50, label: '50 Wins', color: '#ffd84a', dark: '#e8b81c' },
-    { id: 'luck', chance: '35%', type: 'potion', potion: 'superLuck', label: 'LUCK', color: '#4cd964', dark: '#2fb648' },
-    { id: 'wins250', chance: '4.9%', type: 'trophy', n: 250, label: '250 Wins', color: '#a24cf0', dark: '#7f2fd0' },
-    { id: 'hugePet', chance: '0.1%', type: 'pet', pet: 'hugeDemon', label: '250% HUGE', tag: 'OP', color: '#1f9cf0', dark: '#1478c8' },
-  ],
 }

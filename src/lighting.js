@@ -30,6 +30,8 @@ import { mulberry32 } from './textures.js'
 //  - warm point-light lamps that switch on at night, with emissive bulbs
 //  - distance fog in the horizon colour, stars at night, and tone-mapping
 //    exposure, all following the same blend.
+// On top of that each zone of the north lane can bring its own mood (setZoneMood):
+// the day mood eases toward it as you walk in, and back out again.
 const SKY_RADIUS = 500
 
 const skyVertex = /* glsl */ `
@@ -139,6 +141,21 @@ export function createLighting(scene, renderer, preset) {
     return light
   }
 
+  // --- Zone mood: the day mood actually used (`cur`) eases toward the zone's ---
+  const COLOR_KEYS = ['zenith', 'horizon', 'sunColor', 'hemiSky', 'hemiGround']
+  const NUM_KEYS = ['sunIntensity', 'hemiIntensity', 'envIntensity', 'exposure', 'stars', 'lampIntensity', 'fogNear', 'fogFar']
+  const resolve = (mood) => {
+    const out = {}
+    for (const k of COLOR_KEYS) out[k] = new Color(mood?.[k] ?? D[k])
+    for (const k of NUM_KEYS) out[k] = mood?.[k] ?? D[k] ?? (k === 'fogNear' ? FOG.near : FOG.far)
+    return out
+  }
+  const cur = resolve(null)
+  let goal = resolve(null)
+  let moodSettling = false
+  let sinceBake = 0
+  let flashLeft = 0
+
   // --- Day/night blend ---
   let night = 0 // 0 = day, 1 = night
   let target = 0
@@ -147,7 +164,8 @@ export function createLighting(scene, renderer, preset) {
   const tmpB = new Vector3()
   const c = new Color()
   const lerp = (a, b, t) => a + (b - a) * t
-  const mix = (key, out) => out.set(D[key]).lerp(c.set(N[key]), night)
+  const mix = (key, out) => out.copy(cur[key]).lerp(c.set(N[key]), night)
+  const num = (key) => lerp(cur[key], N[key] ?? cur[key], night)
 
   function apply() {
     const t = night
@@ -158,17 +176,19 @@ export function createLighting(scene, renderer, preset) {
     mix('sunColor', sun.color)
     mix('hemiSky', hemi.color)
     mix('hemiGround', hemi.groundColor)
-    sun.intensity = lerp(D.sunIntensity, N.sunIntensity, t)
-    hemi.intensity = lerp(D.hemiIntensity, N.hemiIntensity, t)
-    scene.environmentIntensity = lerp(D.envIntensity, N.envIntensity, t)
-    renderer.toneMappingExposure = lerp(D.exposure, N.exposure, t)
-    stars.material.opacity = lerp(D.stars, N.stars, t)
+    sun.intensity = num('sunIntensity')
+    hemi.intensity = num('hemiIntensity')
+    scene.environmentIntensity = num('envIntensity')
+    renderer.toneMappingExposure = num('exposure')
+    stars.material.opacity = num('stars')
+    scene.fog.near = cur.fogNear
+    scene.fog.far = cur.fogFar
     // Sun and moon are different directions: slerp-ish via normalised lerp of the two.
     sunDirection(D.sunElevation, D.sunAzimuth, tmpA)
     sunDirection(N.sunElevation, N.sunAzimuth, tmpB)
     dir.lerpVectors(tmpA, tmpB, t).normalize()
     skyMaterial.uniforms.sunDir.value.copy(dir)
-    const lampLevel = lerp(D.lampIntensity, N.lampIntensity, t)
+    const lampLevel = num('lampIntensity')
     for (const lamp of lamps) {
       lamp.light.intensity = lampLevel
       lamp.bulb.emissiveIntensity = 0.3 + (lampLevel / N.lampIntensity) * 3
@@ -187,8 +207,19 @@ export function createLighting(scene, renderer, preset) {
       if (sky.day === D && sky.night === N) return
       D = sky.day
       N = sky.night
+      goal = resolve(null)
+      Object.assign(cur, resolve(null))
       apply()
       bakeEnvironment(night)
+    },
+    // A lightning flash: the whole scene blinks bright and fades.
+    flash() {
+      flashLeft = 0.35
+    },
+    // A zone's mood (colours / intensities over the day mood; null = plain day).
+    setZoneMood(mood) {
+      goal = resolve(mood)
+      moodSettling = true
     },
     toggleDayNight() {
       target = target === 1 ? 0 : 1
@@ -203,6 +234,31 @@ export function createLighting(scene, renderer, preset) {
     },
     // Called every frame with the player's position so the sun's shadow box and the sky follow them.
     update(dt, focus) {
+      if (moodSettling) {
+        const k = 1 - Math.exp(-1.6 * dt)
+        let left = 0
+        for (const key of COLOR_KEYS) {
+          cur[key].lerp(goal[key], k)
+          left += Math.abs(cur[key].r - goal[key].r) + Math.abs(cur[key].g - goal[key].g) + Math.abs(cur[key].b - goal[key].b)
+        }
+        for (const key of NUM_KEYS) {
+          cur[key] += (goal[key] - cur[key]) * k
+          left += Math.abs(goal[key] - cur[key]) / (key.startsWith('fog') ? 400 : 2)
+        }
+        apply()
+        sinceBake += dt
+        if (left < 0.01) {
+          moodSettling = false
+          bakeEnvironment(night)
+        } else if (sinceBake > 0.6) {
+          sinceBake = 0
+          bakeEnvironment(night) // the ambient light follows the sky as it changes
+        }
+      }
+      if (flashLeft > 0) {
+        flashLeft = Math.max(0, flashLeft - dt)
+        renderer.toneMappingExposure = num('exposure') + flashLeft * flashLeft * 18 * (0.6 + Math.random() * 0.4)
+      }
       if (night !== target) {
         const stepAmount = dt / TIME_OF_DAY.transition
         night = target > night ? Math.min(target, night + stepAmount) : Math.max(target, night - stepAmount)

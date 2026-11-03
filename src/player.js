@@ -2,7 +2,7 @@ import { inputState } from './input.js'
 import { getYaw, syncYawToPlayer } from './camera.js'
 import { isFirstPerson } from './modes.js'
 import { RAPIER, alpha, onTick, world } from './physics.js'
-import { PHYSICS, PLAYER_DIMS, SPAWN, SPAWN_FACING } from './config.js'
+import { PHYSICS, PLAYER_DIMS, RIDE, SPAWN, SPAWN_FACING } from './config.js'
 
 // The local player singleton, mutated in place. A kinematic Rapier capsule
 // driven by Rapier's KinematicCharacterController: it slides along walls,
@@ -17,7 +17,8 @@ export const player = {
   grounded: true,
   facing: SPAWN_FACING, // yaw the character model faces, radians
   dims: { ...PLAYER_DIMS },
-  racing: false, // race.js drives position/renderPosition itself; the controller stands still
+  speedScale: 1, // Slow Mode scales walking and sprinting
+  riding: false, // on your bike (Ride My Bike, outside the safe zone)
 }
 
 const HALF = PLAYER_DIMS.height / 2 // capsule centre above the feet
@@ -89,7 +90,6 @@ function step(dt) {
   prev.x = player.position.x
   prev.y = player.position.y
   prev.z = player.position.z
-  if (player.racing) return
 
   // Camera-relative ground basis.
   const yaw = getYaw()
@@ -102,7 +102,7 @@ function step(dt) {
   const scale = len > 1 ? 1 / len : 1
   const wishX = (fwdX * mv.z + rightX * mv.x) * scale
   const wishZ = (fwdZ * mv.z + rightZ * mv.x) * scale
-  const speed = inputState.sprint ? PHYSICS.sprintSpeed : PHYSICS.walkSpeed
+  const speed = (inputState.sprint ? PHYSICS.sprintSpeed : PHYSICS.walkSpeed) * player.speedScale * (player.riding ? RIDE.speedScale : 1)
 
   const rate = !player.grounded ? PHYSICS.airAccel : len > 0.01 ? PHYSICS.accel : PHYSICS.decel
   approach2D(player.velocity, wishX * speed, wishZ * speed, rate * dt)

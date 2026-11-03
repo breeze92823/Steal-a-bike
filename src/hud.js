@@ -1,452 +1,256 @@
-// The on-screen HUD, laid out after the reference screenshot (1920x992):
-//   top-centre   - race timer, 1st/2nd/3rd podium under it
-//   top-right    - round buttons (spin wheel, calendar)
-//   left         - CLAIM! pill + grid of menu tiles (Rebirth, Pets, Boats, ...)
-//   right        - trophies / wins, AUTO TRAIN / AUTO RACE, boosts
-//   bottom       - the three-row race distance bar with every racer's head
-// Everything is sized in reference pixels times --u (set on resize), so it keeps
-// the reference proportions on any screen; hud.css adapts it for touch + portrait.
-// The top-left corner is Boxity's (toolbar + chat feed): blocks slide down clear of it (setReserved).
 import './hud.css'
-import { clamp, HUD } from './config.js'
-import { head, ICONS, RIBBON } from './hudIcons.js'
-import { feedback } from './audio/index.js'
-import { burst, lastPress } from './juice.js'
+import { ANNOUNCE, HUD_START, LAYOUT, SLOW_MODE_SCALE, TIMERS } from './config.js'
+import { onKey } from './input.js'
+import { player } from './player.js'
+import { onReservedAreas } from './bloxity.js'
+import { eventStatus, mmss, raceStatus } from './timers.js'
+import { isMuted, setMuted } from './audio.js'
 
-function el(tag, className, html = '') {
+// The lobby HUD: Battle Pass / Shop / Index / Slow Mode down the left, gems and
+// cash bottom left, the two-slot hotbar bottom centre, and on the right Daily
+// Rewards, the Starter Pack, x2 Speed with its boost timer, and the event and
+// race countdowns. Out past the SAFE ZONE line, Ride My Bike (and its gear
+// button) sits above the hotbar. Shop windows are not built yet: their buttons
+// answer with a toast.
+
+const ICONS = {
+  bell: `<svg viewBox="0 0 80 90"><defs><linearGradient id="hb" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe066"/><stop offset="1" stop-color="#f29a00"/></linearGradient></defs>
+    <path d="M40 6c4 0 6 3 6 6 14 4 20 16 20 30v16l8 10v6H6v-6l8-10V42c0-14 6-26 20-30 0-3 2-6 6-6z" fill="url(#hb)" stroke="#6b2a00" stroke-width="4"/>
+    <circle cx="40" cy="80" r="8" fill="#f2a000" stroke="#6b2a00" stroke-width="4"/><path d="M24 30c3-8 8-11 14-12" stroke="#fff7c0" stroke-width="5" fill="none" stroke-linecap="round"/></svg>`,
+  cart: `<svg viewBox="0 0 64 56"><path d="M4 6h10l7 30h30l7-22H18" fill="none" stroke="#fff" stroke-width="7" stroke-linejoin="round" stroke-linecap="round"/><circle cx="24" cy="47" r="5" fill="#fff"/><circle cx="48" cy="47" r="5" fill="#fff"/></svg>`,
+  book: `<svg viewBox="0 0 64 56"><path d="M10 8h34l10 8v34H20l-10-8z" fill="#fff" stroke="#1a1230" stroke-width="4" stroke-linejoin="round"/><path d="M20 16h26M20 26h26M20 36h18" stroke="#1a1230" stroke-width="4"/><path d="M10 8v34l10 8V16z" fill="#d9e6ff" stroke="#1a1230" stroke-width="4" stroke-linejoin="round"/></svg>`,
+  bikeGem: `<svg viewBox="0 0 90 70"><defs><linearGradient id="hg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#bff0ff"/><stop offset=".5" stop-color="#2a9cff"/><stop offset="1" stop-color="#0a3aa8"/></linearGradient></defs>
+    <circle cx="18" cy="48" r="14" fill="#123" stroke="#7fd8ff" stroke-width="5"/><circle cx="70" cy="48" r="14" fill="#123" stroke="#7fd8ff" stroke-width="5"/>
+    <path d="M14 40l14-18 22-4 14 8 12-6 8 10-14 10H40L30 46z" fill="url(#hg)" stroke="#0a2060" stroke-width="3" stroke-linejoin="round"/><path d="M30 20l10-12 12 10" fill="#5fd0ff" stroke="#0a2060" stroke-width="3"/></svg>`,
+  cash: `<svg viewBox="0 0 86 70"><path d="M8 30l38-18 34 14-38 20z" fill="#7fe05a" stroke="#0d3a10" stroke-width="4" stroke-linejoin="round"/><path d="M8 30v16l34 18V46z" fill="#2fa83a" stroke="#0d3a10" stroke-width="4" stroke-linejoin="round"/><path d="M42 46v18l38-20V26z" fill="#ffc21a" stroke="#0d3a10" stroke-width="4" stroke-linejoin="round"/><path d="M28 20l34 14" stroke="#ffe066" stroke-width="7"/></svg>`,
+  bat: `<svg viewBox="0 0 66 66"><path d="M58 6c3 3 2 7-1 10L22 50l-6-6L50 9c3-3 6-4 8-3z" fill="#f1d38a" stroke="#6b4a1a" stroke-width="3"/><path d="M16 44l6 6-8 9c-2 2-5 2-7 0s-2-5 0-7z" fill="#c9a060" stroke="#6b4a1a" stroke-width="3"/></svg>`,
+  wire: `<svg viewBox="0 0 66 66"><g fill="none" stroke="#d4d9e2" stroke-width="3"><ellipse cx="33" cy="36" rx="24" ry="14"/><ellipse cx="33" cy="32" rx="22" ry="12"/><ellipse cx="33" cy="28" rx="20" ry="10"/></g><g stroke="#9aa3b2" stroke-width="3"><path d="M12 30l-4-4M54 30l4-4M20 44l-3 5M46 44l3 5M33 18v-6"/></g></svg>`,
+  starter: `<svg viewBox="0 0 150 150"><defs><radialGradient id="hs"><stop offset="0" stop-color="#5fe4ff"/><stop offset="1" stop-color="#1a4fd0"/></radialGradient></defs>
+    <circle cx="75" cy="75" r="70" fill="url(#hs)" stroke="#0b1a3a" stroke-width="6"/>
+    <g transform="translate(66 24)"><path d="M0 22l40-18 28 12-40 20z" fill="#7fe05a" stroke="#0d3a10" stroke-width="3"/><path d="M0 22v14l28 14V36z" fill="#2fa83a" stroke="#0d3a10" stroke-width="3"/><path d="M28 36v14l40-20V16z" fill="#ffc21a" stroke="#0d3a10" stroke-width="3"/></g>
+    <circle cx="44" cy="104" r="20" fill="#222" stroke="#fff" stroke-width="5"/><circle cx="108" cy="110" r="16" fill="#222" stroke="#fff" stroke-width="5"/>
+    <path d="M36 90l22-26 30-6 22 14-6 22H62z" fill="#f4f6ff" stroke="#0b1a3a" stroke-width="4" stroke-linejoin="round"/><path d="M60 72l26-6 14 10-30 8z" fill="#ff3cb4"/></svg>`,
+  shield: `<svg viewBox="0 0 78 92"><path d="M39 4l32 10v28c0 22-14 38-32 46C21 80 7 64 7 42V14z" fill="#ff9d1a" stroke="#7a2a00" stroke-width="4"/><path d="M39 12l24 8v22c0 16-10 28-24 36z" fill="#ffd21a"/></svg>`,
+  boost: `<svg viewBox="0 0 58 50"><circle cx="12" cy="36" r="9" fill="#123" stroke="#7fd8ff" stroke-width="4"/><circle cx="46" cy="36" r="9" fill="#123" stroke="#7fd8ff" stroke-width="4"/><path d="M8 30l10-14 16-2 10 6 8-4 4 8-10 6H26z" fill="#2a9cff" stroke="#0a2060" stroke-width="3"/></svg>`,
+  pumpkin: `<svg viewBox="0 0 60 60"><path d="M30 8c2-6 8-6 10-4-4 1-6 4-7 8" fill="#3f8a22"/><ellipse cx="30" cy="36" rx="26" ry="20" fill="#ff7a12" stroke="#7a2a00" stroke-width="3"/><path d="M30 16v40M18 18c-6 10-6 26 0 36M42 18c6 10 6 26 0 36" stroke="#d9580a" stroke-width="3" fill="none"/>
+    <path d="M17 30l6-6 5 7zM43 30l-6-6-5 7z" fill="#4a1a00"/><path d="M16 40c8 8 20 8 28 0l-4 8h-20z" fill="#4a1a00"/></svg>`,
+  gear: `<svg viewBox="0 0 64 64"><path d="M27 4h10l2 8 6 3 7-4 7 7-4 7 3 6 8 2v10l-8 2-3 6 4 7-7 7-7-4-6 3-2 8H27l-2-8-6-3-7 4-7-7 4-7-3-6-8-2V27l8-2 3-6-4-7 7-7 7 4 6-3z" fill="#3d8cff" stroke="#123a8a" stroke-width="3" stroke-linejoin="round"/><circle cx="32" cy="32" r="10" fill="#6f7a90" stroke="#123a8a" stroke-width="3"/></svg>`,
+  speaker: `<svg viewBox="0 0 48 48"><path d="M8 18h8l10-8v28l-10-8H8z" fill="#fff" stroke="#1a1230" stroke-width="3" stroke-linejoin="round"/><path class="waves" d="M31 17c3 3 3 11 0 14M36 12c6 6 6 18 0 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round"/><path class="cross" d="M32 18l12 12M44 18L32 30" stroke="#ff4a5a" stroke-width="4" stroke-linecap="round"/></svg>`,
+  flag: `<svg viewBox="0 0 60 60"><path d="M10 6v52" stroke="#555" stroke-width="5"/><path d="M12 8h40v28H12z" fill="#fff" stroke="#222" stroke-width="2"/>
+    <g fill="#111"><rect x="12" y="8" width="8" height="7"/><rect x="28" y="8" width="8" height="7"/><rect x="44" y="8" width="8" height="7"/><rect x="20" y="15" width="8" height="7"/><rect x="36" y="15" width="8" height="7"/><rect x="12" y="22" width="8" height="7"/><rect x="28" y="22" width="8" height="7"/><rect x="44" y="22" width="8" height="7"/><rect x="20" y="29" width="8" height="7"/><rect x="36" y="29" width="8" height="7"/></g></svg>`,
+}
+
+function el(tag, cls, html = '') {
   const e = document.createElement(tag)
-  if (className) e.className = className
-  if (html) e.innerHTML = html
+  if (cls) e.className = cls
+  e.innerHTML = html
   return e
 }
 
-// Outlined text (stroke drawn under the fill; see .ol in hud.css).
-const text = (className, value) => {
-  const e = el('span', `ol ${className}`)
-  e.textContent = value
-  return e
+function shortMoney(n) {
+  if (n < 1000) return `$${Math.floor(n)}`
+  const units = [['T', 1e12], ['B', 1e9], ['M', 1e6], ['K', 1e3]]
+  for (const [u, v] of units) {
+    if (n >= v) {
+      const x = n / v
+      return `$${x >= 100 ? Math.floor(x) : (Math.floor(x * 10) / 10).toString()}${u}`
+    }
+  }
+  return `$${n}`
 }
 
-// Gradient-filled outlined text: the outline is a copy behind it (data-t).
-function gradText(className, value) {
-  const e = el('span', `grad ${className}`)
-  setGradText(e, value)
-  return e
-}
-function setGradText(e, value) {
-  e.textContent = value
-  e.dataset.t = value
-}
-
-// A HUD button. Fires on pointerdown like the touch controls (no click delay).
-function button(className, html, fn) {
-  const b = el('button', `hud-btn ${className}`, html)
-  b.type = 'button'
-  b.addEventListener('pointerdown', (e) => {
-    e.preventDefault()
-    e.stopPropagation()
-    b.classList.remove('pop')
-    void b.offsetWidth // restart the press animation
-    b.classList.add('pop')
-    fn?.(b)
-  })
-  return b
-}
-
-const dot = () => el('span', 'hud-dot')
-
-function tile(name, label, icon, fn, extra) {
-  const b = button(`hud-tile tile-${name}`, `<span class="tile-icon">${icon}</span>`, fn)
-  b.append(text('tile-label', label))
-  if (extra) b.append(extra)
-  return b
-}
-
-function formatTime(ms) {
-  const m = Math.floor(ms / 60000)
-  const s = Math.floor(ms / 1000) % 60
-  const r = Math.floor(ms) % 1000
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(r).padStart(3, '0')}`
-}
-
-// actions: { claim, daily (the calendar), rebirth, pets, boats, engine, partner, trail,
-// autoTrain(on), autoRace(on), boosts (the three boost circles) }, all optional; a menu
-// tile calls the action named after it.
-export function createHud(actions = {}) {
+export function createHud() {
   const root = el('div', 'hud')
-  const d = HUD.design
-
-  // --- Timer --------------------------------------------------------------------------
-  const timer = el('div', 'hud-timer')
-  const timerText = text('timer-text', '00:00.000')
-  timer.append(timerText)
-
-  // --- Podium: the three racers furthest along, under the timer ------------------------
-  // (in the DOM before the top row so the timer's panel covers the ribbons' tops)
-  const podium = el('div', 'hud-podium')
-  const medals = ['1st', '2nd', '3rd'].map((label, i) => {
-    const m = el('div', `medal medal-${i + 1}`)
-    const face = el('span', 'medal-face')
-    m.append(el('span', 'medal-ribbon', RIBBON), face, gradText('medal-label', label))
-    podium.append(m)
-    return { m, face: { e: face, key: null } }
-  })
-
-  // --- Top-right round buttons -------------------------------------------------------------
-  const tr = el('div', 'hud-tr')
-  for (const [icon, badge, fn] of [
-    ['wheel', true, actions.spin],
-    ['calendar', true, actions.daily],
-  ]) {
-    const b = button(`hud-round round-${icon}`, ICONS[icon], fn)
-    if (badge) b.append(dot())
-    tr.append(b)
+  let toastTimer = 0
+  const toast = el('div', 'hud-toast ot')
+  const say = (text) => {
+    toast.textContent = text
+    toast.classList.add('show')
+    clearTimeout(toastTimer)
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 1600)
   }
-  // The calendar (Daily Reward) shows its dot only while a day can be claimed (setDailyReady).
-  const calendar = tr.querySelector('.round-calendar')
-  // The wheel (Spin wheel) likewise, while a spin is ready (setSpinCount).
-  const wheel = tr.querySelector('.round-wheel')
-
-  // --- Left: CLAIM + tiles --------------------------------------------------------------------
-  const left = el('div', 'hud-left')
-  const claim = button('hud-claim', `<span class="claim-gift">${ICONS.gift}</span>`, actions.claim)
-  const claimBadge = el('span', 'claim-badge')
-  const claimCount = text('', '0')
-  claimBadge.append(claimCount)
-  claim.append(claimBadge, gradText('claim-text', 'CLAIM!'))
-  const grid = el('div', 'hud-grid')
-  grid.append(
-    tile('rebirth', 'Rebirth', ICONS.rebirth, actions.rebirth),
-    tile('pets', 'Pets', ICONS.pets, actions.pets),
-    tile('boats', 'Boats', ICONS.boats, actions.boats),
-    tile('engine', 'Engine', ICONS.engine, actions.engine),
-    tile('partner', 'Partner', ICONS.partner, actions.partner),
-    tile('trail', 'Trail', ICONS.trail, actions.trail),
-  )
-  left.append(claim, grid)
-
-  // --- Right: stats, autos, boosts -------------------------------------------------------
-  const right = el('div', 'hud-right')
-
-  const stats = el('div', 'hud-stats')
-  const statEls = {}
-  for (const [key, icon] of [
-    ['trophies', 'trophy'],
-    ['wins', 'bolt'],
-  ]) {
-    const row = el('div', `hud-stat stat-${key}`)
-    statEls[key] = gradText('stat-num', '0')
-    row.append(statEls[key], el('span', 'stat-icon', ICONS[icon]))
-    stats.append(row)
-  }
-
-  const autos = el('div', 'hud-autos')
-  // fn(on) is told the new state. "AUTO " is its own span so touch screens can drop it
-  // and show compact TRAIN / RACE tiles (hud.css).
-  const auto = (label, icon, fn) => {
-    const b = button('hud-auto', `<span class="auto-icon">${ICONS[icon]}</span>`, (btn) => {
-      fn?.(btn.classList.toggle('on'))
-    })
-    const t = text('auto-label', label)
-    t.prepend(el('span', 'auto-pre', 'AUTO '))
-    b.append(t)
+  const btn = (cls, html, fn) => {
+    const b = el('button', cls, html)
+    b.type = 'button'
+    b.addEventListener('pointerdown', (e) => e.stopPropagation()) // keep taps off the look/joystick zones
+    b.addEventListener('click', fn)
     return b
   }
-  autos.append(auto('TRAIN', 'bolt', actions.autoTrain), auto('RACE', 'trophy', actions.autoRace))
 
-  const boosts = el('div', 'hud-boosts')
-  for (const [cls, icon, label] of [
-    ['gold', 'trophy', 'x2'],
-    ['blue', 'bolt', 'x2'],
-    ['purple', 'paw', '+3'],
-  ]) {
-    const b = button(`hud-boost boost-${cls}`, `<span class="boost-icon">${ICONS[icon]}</span>`, actions.boosts)
-    b.append(text('boost-label', label))
-    boosts.append(b)
-  }
-  // Two groups so a short touch screen can put them side by side (hud.css).
-  const rightA = el('div', 'right-a')
-  const rightB = el('div', 'right-b')
-  rightA.append(stats)
-  rightB.append(autos, boosts)
-  right.append(rightA, rightB)
-
-  // --- Bottom: race distance bars ----------------------------------------------------------
-  const bottom = el('div', 'hud-bottom')
-  // Bars span 438..1482 px of the reference; segment edges come from HUD.progress.
-  const barLeft = 438
-  const barWidth = 1482 - barLeft
-  const bars = el('div', 'hud-bars')
-  HUD.progress.forEach((row, r) => {
-    const rowEl = el('div', `bar-row bar-row-${r}`)
-    let from = r === HUD.progress.length - 1 ? 462 : barLeft
-    rowEl.style.marginLeft = `${((from - barLeft) / barWidth) * 100}%`
-    const rowWidth = 1482 - from
-    for (const seg of row) {
-      const s = el('div', 'bar-seg')
-      s.style.width = `${((seg.at - from) / rowWidth) * 100}%`
-      s.style.background = seg.color
-      s.append(text('bar-label', seg.label))
-      rowEl.append(s)
-      from = seg.at
-    }
-    bars.append(rowEl)
+  // Left column.
+  const left = el('div', 'hud-left')
+  left.append(
+    btn('hud-bp', `${ICONS.bell.replace('<svg', '<svg class="bell"')}<div class="banner ot">Battle Pass</div><div class="tag ot">Discount</div>`, () => say('Battle Pass coming soon')),
+    btn('hud-big hud-shop', `${ICONS.cart}<span class="ot">Shop</span><span class="hud-badge ot">!</span>`, () => say('Shop coming soon')),
+    btn('hud-big hud-index', `${ICONS.book}<span class="ot">Index</span><span class="hud-badge ot">!</span>`, () => say('Index coming soon')),
+  )
+  const slow = btn('hud-slow', `<span class="sw"><span class="knob"></span></span><span class="txt ot">Slow Mode</span>`, () => {
+    slow.classList.toggle('on')
+    player.speedScale = slow.classList.contains('on') ? SLOW_MODE_SCALE : 1
   })
-  bars.firstChild.append(el('span', 'bar-gem', ICONS.gem))
-  // Distance -> { row, x (reference px) }: the finest row that reaches it.
-  // Each row starts where the one below ends (0 / 2K / 13K).
-  const rows = HUD.progress.map((segs, r) => ({ r, x0: r === HUD.progress.length - 1 ? 440 : barLeft, segs, v0: 0 }))
-  for (let r = rows.length - 2; r >= 0; r--) rows[r].v0 = rows[r + 1].segs.at(-1).to
-  const locate = (distance) => {
-    const d = Math.max(0, distance)
-    const row = rows.findLast((w) => d <= w.segs.at(-1).to) ?? rows[0]
-    let x = row.x0
-    let v = row.v0
-    for (const seg of row.segs) {
-      if (d <= seg.to) return { row: row.r, x: x + ((d - v) / (seg.to - v)) * (seg.at - x) }
-      x = seg.at
-      v = seg.to
-    }
-    return { row: row.r, x }
+  left.append(slow)
+
+  // Money.
+  const money = el('div', 'hud-money')
+  const gemRow = el('div', 'row', `<div class="ico">${ICONS.bikeGem}<span class="plus">+</span></div><span class="hud-gems ot"></span>`)
+  const cashRow = el('div', 'row', `<div class="ico">${ICONS.cash}</div><span class="hud-cash ot"></span>`)
+  money.append(gemRow, cashRow)
+  const gemsEl = gemRow.querySelector('.hud-gems')
+  const cashEl = cashRow.querySelector('.hud-cash')
+
+  // Hotbar.
+  const hotbar = el('div', 'hud-hotbar')
+  const slots = [
+    btn('hud-slot', `<span class="n ot">1</span>${ICONS.bat}<span class="nm ot">Bat</span>`, () => select(0)),
+    btn('hud-slot', `<span class="n ot">2</span>${ICONS.wire}<span class="cnt">x2</span><span class="nm ot">Barbed Wire</span>`, () => select(1)),
+  ]
+  let selected = -1
+  const select = (i) => {
+    selected = selected === i ? -1 : i
+    slots.forEach((s, k) => s.classList.toggle('sel', k === selected))
   }
-  const place = (e, distance) => {
-    const { row, x } = locate(distance)
-    e.style.left = `${((x - barLeft) / barWidth) * 100}%`
-    e.style.setProperty('--row', row)
+  hotbar.append(...slots)
+  onKey('Digit1', () => select(0))
+  onKey('Digit2', () => select(1))
+
+  // Right side.
+  const daily = btn('hud-daily', 'Daily Rewards', () => say('Daily Rewards coming soon'))
+  const sound = btn('hud-sound', ICONS.speaker, () => toggleSound())
+  const toggleSound = () => {
+    setMuted(!isMuted())
+    sound.classList.toggle('muted', isMuted())
+    say(isMuted() ? 'Sound off' : 'Sound on')
   }
+  sound.classList.toggle('muted', isMuted())
+  onKey('KeyM', toggleSound)
+  const topRight = el('div', 'hud-topright')
+  topRight.append(sound, daily)
+  const starter = btn('hud-starter', `<div class="rays"></div>${ICONS.starter}<span class="ot">Starter Pack</span>`, () => say('Starter Pack coming soon'))
+  const x2 = btn('hud-x2', `${ICONS.shield.replace('<svg', '<svg class="shield"')}<div class="t1 ot">x2 Speed</div><div class="t2 ot">Only 2 <i></i></div>`, () => say('x2 Speed coming soon'))
+  const boost = el('div', 'hud-boost', `${ICONS.boost}<span class="x ot">x2</span><div class="tm ot"></div>`)
+  const boostEl = boost.querySelector('.tm')
+  const timers = el('div', 'hud-timers')
+  const eventRow = el('div', 'row', `${ICONS.pumpkin}<span class="ot"></span>`)
+  const raceRow = el('div', 'row', `${ICONS.flag}<span class="ot"></span>`)
+  timers.append(eventRow, raceRow)
+  const eventEl = eventRow.querySelector('span')
+  const raceEl = raceRow.querySelector('span')
 
-  const racerEls = [] // other racers' heads ({ e, key } slots for paintFace), reused across setRacers calls
-  const marker = el('div', 'bar-marker')
-  const markerHead = { e: el('span', 'marker-head', ICONS.head), key: null }
-  marker.append(el('span', 'marker-arrow'), markerHead.e)
-  bars.append(marker) // after the racers' heads (setRacers inserts before it), so the player stays on top
-  // The player's best distance (setBest): a white line on its row with a BEST tag (styled in race.css).
-  const best = el('span', 'bar-best')
-  best.style.display = 'none'
-  bars.insertBefore(best, marker)
+  // Ride My Bike: only out in the lane, past the SAFE ZONE line.
+  const ride = el('div', 'hud-ride')
+  const rideBtn = btn('hud-ride-go', '<span class="ot">Ride My Bike</span>', () => {
+    player.riding = !player.riding
+    rideLabel.textContent = player.riding ? 'Get Off Bike' : 'Ride My Bike'
+  })
+  const rideLabel = rideBtn.querySelector('span')
+  ride.append(rideBtn, btn('hud-ride-gear', ICONS.gear, () => say('Bike settings coming soon')))
 
-  bottom.append(bars)
+  // Announcement banner ("A Secret Phantom GT Just Spawned in Angel Biome!").
+  const banner = el('div', 'hud-announce ot')
+  let nextAnnounce = ANNOUNCE.first
+  let announceLeft = 0
+  let announceK = 0
 
-  const top = el('div', 'hud-top')
-  top.append(tr) // the race timer (`timer`) is kept off-screen: not shown in the HUD
-  root.append(podium, top, left, right, bottom)
+  // Zone title card (on entering a zone) and the small zone label up top.
+  const card = el('div', 'hud-zonecard')
+  const pill = el('div', 'hud-zonepill ot')
+  let cardTimer = 0
+
+  root.append(left, money, hotbar, ride, topRight, starter, x2, boost, timers, banner, pill, card, toast)
   document.body.appendChild(root)
 
-  // --- Boxity's reserved areas (setReserved) ------------------------------------------------------
-  // The portal draws its toolbar and chat feed over the top-left corner (the whole top edge on
-  // narrow phones). Each block that would sit under them slides down until it clears them (CSS
-  // `translate`, so its own positioning is untouched), and below any block above it that moved.
-  // Re-laid out on resize, when a block changes size (podium shown, scene mode) and when the
-  // HUD's or the page's classes change (portrait, touch-ui, uiw-open move blocks around).
-  const RESERVED_GAP = 8 // px kept clear under a reserved area
-  const avoiders = [tr, podium, left, right] // top to bottom: a moved block pushes the ones under it
-  let reserved = []
-  let layoutQueued = 0
-  const overlaps = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom
-  function layoutReserved() {
-    layoutQueued = 0
-    for (const e of avoiders) e.style.translate = ''
-    const blocks = reserved.map((a) => ({ left: a.left, right: a.left + a.width, top: a.top, bottom: a.top + a.height }))
-    for (const e of avoiders) {
-      const r = e.getBoundingClientRect()
-      if (!r.width || !r.height || getComputedStyle(e).visibility === 'hidden') continue // not shown (uiw-open hides all but the counters)
-      let push = 0
-      for (let moved = true; moved; ) {
-        moved = false
-        const box = { left: r.left, right: r.right, top: r.top + push, bottom: r.bottom + push }
-        const hit = blocks.find((b) => overlaps(box, b))
-        if (hit) {
-          push = hit.bottom + RESERVED_GAP - r.top // always grows, so this ends
-          moved = true
-        }
-      }
-      if (push <= 0) continue
-      e.style.translate = `0 ${push}px`
-      blocks.push({ left: r.left, right: r.right, top: r.top + push, bottom: r.bottom + push })
+  // Keep the left column under Boxity's toolbar + chat in the top-left corner.
+  // On short screens there is no room under them, so the column goes beside the chat instead.
+  onReservedAreas((areas) => {
+    const corner = areas.filter((a) => a.left < window.innerWidth * 0.3)
+    const bottom = corner.reduce((m, a) => Math.max(m, a.top + a.height), 0)
+    root.style.setProperty('--reserved-top', `${bottom}px`)
+    if (window.innerHeight - bottom < 320) {
+      const toolbar = corner.find((a) => a.id === 'toolbar')
+      const chat = corner.find((a) => a.id === 'chat')
+      root.style.setProperty('--col-top', `${(toolbar ? toolbar.top + toolbar.height : 0) + 8}px`)
+      root.style.setProperty('--col-left', `${(chat ? chat.left + chat.width : 0) + 12}px`)
+    } else {
+      root.style.removeProperty('--col-top')
+      root.style.removeProperty('--col-left')
     }
-  }
-  // Batched into one pass; a timeout rather than a frame so it also lands in a background tab.
-  const relayout = () => {
-    layoutQueued ||= setTimeout(layoutReserved)
-  }
-  const sized = new ResizeObserver(relayout)
-  for (const e of avoiders) sized.observe(e)
-  const classes = new MutationObserver(relayout)
-  classes.observe(root, { attributes: true, attributeFilter: ['class'] })
-  classes.observe(document.body, { attributes: true, attributeFilter: ['class'] })
+  })
 
-  // --- Sizing ------------------------------------------------------------------------------------------
-  function resize() {
-    const vv = window.visualViewport
-    const w = vv?.width ?? window.innerWidth
-    const h = vv?.height ?? window.innerHeight
-    const u = clamp(Math.min(w / d.w, h / d.h), HUD.minScale, HUD.maxScale)
-    root.style.setProperty('--u', `${u}px`)
-    root.classList.toggle('portrait', h > w)
-    root.classList.toggle('short', h <= w && h < 500) // phone landscape
-    relayout()
-  }
-  window.addEventListener('resize', resize)
-  window.visualViewport?.addEventListener('resize', resize)
-  resize()
+  // --- State ---
+  let cash = HUD_START.cash
+  let boostLeft = TIMERS.boost
+  let shownCash = ''
+  let tick = 1 // draw on the first update
+  gemsEl.textContent = HUD_START.gems
 
-  // --- State ----------------------------------------------------------------------------------------------
-  const state = { ...HUD.stats }
-  const fmt = (n) => (n >= 1e6 ? `${+(n / 1e6).toFixed(1)}M` : n >= 1e4 ? `${+(n / 1e3).toFixed(1)}K` : String(n))
-  // Counters roll to their new value (and glow up / blink red when spent) instead of jumping;
-  // spending trophies or lightning plays the purchase sound (audio feedback). Quiet while booting.
-  const shownStat = {}
-  const rolls = {}
-  let rollFrame = 0
-  let live = false
-  setTimeout(() => (live = true), 1500)
-  function roll(now) {
-    rollFrame = 0
-    for (const key of Object.keys(rolls)) {
-      const r = rolls[key]
-      const k = Math.min(1, (now - r.t0) / HUD.rollMs)
-      shownStat[key] = r.from + (r.to - r.from) * (1 - (1 - k) ** 3)
-      statEls[key] && setGradText(statEls[key], fmt(Math.round(shownStat[key])))
-      if (k >= 1) delete rolls[key]
-    }
-    if (Object.keys(rolls).length) rollFrame = requestAnimationFrame(roll)
-  }
-  function setStat(key, value) {
-    const old = state[key]
-    state[key] = value
-    if (!live || old === value || !Number.isFinite(old) || !Number.isFinite(value)) {
-      delete rolls[key]
-      shownStat[key] = value
-      statEls[key] && setGradText(statEls[key], fmt(value))
-      return
-    }
-    const row = statEls[key]?.parentElement
-    if (!row) {
-      shownStat[key] = value
-      return
-    }
-    const cls = value > old ? 'gain' : 'spend'
-    row.classList.remove('gain', 'spend')
-    void row.offsetWidth
-    row.classList.add(cls)
-    if (cls === 'spend' && key !== 'gems') {
-      feedback('spend')
-      burst(lastPress().x, lastPress().y, 'coins') // coins pour out of the button that bought it
-    }
-    rolls[key] = { from: shownStat[key] ?? old, to: value, t0: performance.now() }
-    if (!rollFrame) rollFrame = requestAnimationFrame(roll)
-  }
-  for (const key of Object.keys(state)) setStat(key, state[key])
-
-  // A head in a slot ({ e, key }): the cartoon look ('player' = the player's own), swapped for the
-  // Bloxity profile picture once it has loaded (kept on the cartoon if it fails). Repaints only
-  // when the racer or picture changes, so a picture isn't reloaded every frame.
-  function paintFace(slot, id, look, pfp) {
-    const key = `${id}|${pfp}`
-    if (slot.key === key) return
-    slot.key = key
-    slot.e.innerHTML = look === 'player' ? ICONS.head : look ? head(look) : ''
-    if (!pfp) return
-    const img = new Image()
-    img.alt = ''
-    img.className = 'racer-pfp'
-    img.draggable = false
-    img.onload = () => slot.key === key && slot.e.replaceChildren(img)
-    img.src = pfp
-  }
-
-  // The podium shows the top three of the racers plus the player, by distance.
-  let playerDistance = 0
-  let playerPfp = ''
-  let racers = []
-  function refreshPodium() {
-    const me = { id: 'me', distance: playerDistance, look: 'player', pfp: playerPfp }
-    const ranked = [...racers, me].sort((a, b) => b.distance - a.distance)
-    podium.classList.toggle('empty', racers.length === 0)
-    medals.forEach((md, i) => {
-      const r = ranked[i]
-      md.m.style.visibility = r ? '' : 'hidden'
-      if (r) paintFace(md.face, r.id, r.look, r.pfp || '')
-    })
-  }
-  // The player's own Bloxity profile picture ('' = the cartoon head) for the bar marker and podium.
-  function setPfp(url) {
-    playerPfp = url || ''
-    paintFace(markerHead, 'me', 'player', playerPfp)
-    refreshPodium()
-  }
-  // Race distance in the same units as HUD.progress (0..the finish).
-  function setDistance(d) {
-    playerDistance = d
-    place(marker, d)
-    refreshPodium()
-  }
-  // [{ id, name, distance, look, pfp }] for everyone else racing (remote players, race.js).
-  function setRacers(list) {
-    racers = list
-    while (racerEls.length < list.length) {
-      const e = el('span', 'bar-racer')
-      bars.insertBefore(e, marker)
-      racerEls.push({ e, key: null })
-    }
-    racerEls.forEach((r, i) => {
-      const racer = list[i]
-      r.e.style.display = racer ? '' : 'none'
-      if (!racer) return
-      paintFace(r, racer.id ?? racer.name, racer.look, racer.pfp || '')
-      r.e.title = racer.name ?? ''
-      place(r.e, racer.distance)
-    })
-    refreshPodium()
-  }
-  setRacers([]) // remote players appear as they race (race.js)
-  setPfp('')
-  setDistance(0)
-
-  const start = performance.now()
-  let shown = ''
-  let timerMs = null // set by setTimer (a race's own clock); null = time since load
+  let rideShown = null
+  let clock = 0
   return {
-    root,
-    bottom, // race.js's widgets go in here, above the bars column
-    setStat,
-    getStat: (key) => state[key],
-    // Gifts ready to claim (gifts.js); the badge hides at 0.
-    setClaimCount(n) {
-      claimCount.textContent = String(n)
-      claimBadge.style.display = n > 0 ? '' : 'none'
-      claim.classList.toggle('ready', n > 0) // wiggles for attention (juice.css)
+    // A zone of the lane: { k, name, rec, guard, color }.
+    enterZone(z) {
+      card.innerHTML = ''
+      const k = el('div', 'k ot')
+      k.textContent = `ZONE ${z.k}`
+      const n = el('div', 'n ot')
+      n.textContent = z.name
+      n.style.color = z.color
+      const info = el('div', 'i ot')
+      info.textContent = `Recommended ${z.rec} · Guarded by ${z.guard}`
+      card.append(k, n, info)
+      card.classList.remove('show')
+      void card.offsetWidth // restart the animation
+      card.classList.add('show')
+      clearTimeout(cardTimer)
+      cardTimer = setTimeout(() => card.classList.remove('show'), 3600)
+      pill.textContent = `Zone ${z.k} · ${z.name}`
+      pill.classList.add('show')
     },
-    // Daily Reward days ready to claim (daily.js): the calendar's dot + wiggle.
-    setDailyReady(n) {
-      calendar.classList.toggle('ready', n > 0)
+    leaveLane() {
+      pill.classList.remove('show')
     },
-    // Spins ready on the Spin wheel (spin.js): the wheel's dot + wiggle.
-    setSpinCount(n) {
-      wheel.classList.toggle('ready', n > 0)
-    },
-    setDistance,
-    setRacers,
-    setPfp,
-    // Personal best distance on the bar; 0 hides it.
-    setBest(d) {
-      best.style.display = d > 0 ? '' : 'none'
-      if (d > 0) place(best, d)
-    },
-    // Scene mode (the Trails scene): only the round buttons stay.
-    setScene: (on) => root.classList.toggle('scene', on),
-    // Boxity's toolbar / chat rectangles ([{ left, top, width, height }], CSS px) to keep clear of.
-    setReserved(areas) {
-      reserved = areas
-      relayout()
-    },
-    // Show this time (ms) on the timer instead of the time since load; null goes back.
-    setTimer(ms) {
-      timerMs = ms
-    },
-    update() {
-      const t = formatTime(timerMs ?? performance.now() - start)
-      if (t !== shown) timerText.textContent = shown = t
+    update(dt) {
+      clock += dt
+      if (clock >= nextAnnounce) {
+        nextAnnounce = clock + ANNOUNCE.every
+        announceLeft = ANNOUNCE.show
+        const m = ANNOUNCE.messages[announceK++ % ANNOUNCE.messages.length]
+        banner.innerHTML = ''
+        const bike = el('span', 'bike')
+        bike.textContent = m.bike
+        banner.append(m.pre, bike, m.post)
+        banner.classList.add('show')
+      }
+      if (announceLeft > 0) {
+        announceLeft -= dt
+        if (announceLeft <= 0) banner.classList.remove('show')
+      }
+      // Every frame: the safe zone (up to the far edge of the red line) takes you off your bike.
+      const outside = player.position.z < LAYOUT.safeZoneZ - 0.6
+      if (!outside && player.riding) {
+        player.riding = false
+        rideLabel.textContent = 'Ride My Bike'
+      }
+      if (outside !== rideShown) {
+        rideShown = outside
+        ride.classList.toggle('show', outside)
+      }
+      boostLeft = Math.max(0, boostLeft - dt)
+      cash += HUD_START.income * dt
+      tick += dt
+      if (tick < 0.2) return // the DOM only needs a few updates a second
+      tick = 0
+      const c = shortMoney(cash)
+      if (c !== shownCash) {
+        shownCash = c
+        cashEl.textContent = c
+      }
+      boost.style.display = boostLeft > 0 ? '' : 'none'
+      boostEl.textContent = `${Math.floor(boostLeft / 60)}:${String(Math.floor(boostLeft % 60)).padStart(2, '0')}`
+      const e = eventStatus()
+      eventEl.textContent = `${e.open ? 'Closes' : 'Event'} in ${mmss(e.left)}`
+      const r = raceStatus()
+      raceEl.textContent = r.now ? 'Race is NOW!' : `Race in ${mmss(r.left)}`
+      raceEl.classList.toggle('now', r.now)
     },
   }
 }

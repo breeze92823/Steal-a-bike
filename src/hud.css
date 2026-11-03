@@ -1,898 +1,699 @@
-/* HUD (hud.js). Sizes are reference-screenshot pixels times --u (set in JS);
-   on touch every control grows to at least --tap. */
+/* The lobby HUD (hud.js). Sized with clamp()/vmin so it reads on phones and
+   desktops alike; the left column starts under Boxity's reserved corner. */
 .hud {
-  --u: 1px;
-  --o: max(1px, calc(2.4 * var(--u))); /* text outline */
-  --tap: 0px;
-  --sl: env(safe-area-inset-left, 0px);
-  --sr: env(safe-area-inset-right, 0px);
-  --st: env(safe-area-inset-top, 0px);
-  --sb: env(safe-area-inset-bottom, 0px);
-  --ink: #15151f;
-  --panel: rgba(18, 20, 26, 0.6);
   position: fixed;
   inset: 0;
-  z-index: 20; /* above the touch zones, below portal overlays */
+  z-index: 20;
   pointer-events: none;
-  overflow: hidden;
-  font-family: 'Fredoka', system-ui, sans-serif;
+  font-family: 'Fredoka', 'Arial Black', system-ui, sans-serif;
   font-weight: 700;
-  line-height: 1;
   color: #fff;
-}
-.touch-ui .hud {
-  --tap: 44px;
-}
-.hud * {
-  box-sizing: border-box;
+  --u: clamp(0.6px, 0.06vmin + 0.021vw, 1.2px); /* one design pixel (1 at 1920x990) */
+  --safe-l: env(safe-area-inset-left, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --reserved-top: 0px;
   user-select: none;
   -webkit-user-select: none;
-  -webkit-touch-callout: none;
+}
+:where(.hud button) {
+  pointer-events: auto;
+  touch-action: none;
+  font: inherit;
+  color: inherit;
+  border: 0;
+  padding: 0;
+  background: none;
+  cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+}
+.hud button:active,
+.hud .pop {
+  animation: hud-pop 0.25s ease-out;
+}
+@keyframes hud-pop {
+  40% { transform: scale(0.9); }
+  100% { transform: scale(1); }
 }
 .hud svg {
   display: block;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
 }
-
-.hud-btn {
-  position: relative;
-  pointer-events: auto;
-  touch-action: none;
-  display: block;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  color: inherit;
-  cursor: pointer;
-}
-/* Icon-only buttons: the svg is centred at --icon of the button. */
-.hud-round,
-.hud-slot {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.hud-round > svg,
-.hud-slot > svg {
-  width: var(--icon);
-  height: var(--icon);
-  flex: none;
-}
-.hud-btn:focus-visible {
-  outline: 3px solid #ffe14a;
-  outline-offset: 2px;
-}
-.hud-btn.pop {
-  animation: hud-pop 0.18s ease-out;
-}
-@keyframes hud-pop {
-  45% {
-    transform: scale(0.88);
-  }
-}
-
-/* Outlined text: a stroke painted under the fill. */
-.ol {
-  -webkit-text-stroke: calc(2 * var(--o)) var(--ink);
+/* Outlined game text. */
+.hud .ot {
+  -webkit-text-stroke: calc(var(--u) * 7) #1a1230;
   paint-order: stroke fill;
-  white-space: nowrap;
-}
-/* Gradient text: the element draws the outline, a copy on top (data-t) draws the
-   --fill gradient clipped to the glyphs. */
-.grad {
-  position: relative;
-  display: inline-block;
-  white-space: nowrap;
-  color: var(--ink);
-  -webkit-text-stroke: calc(2 * var(--o)) var(--ink);
-}
-.grad::before {
-  content: attr(data-t);
-  position: absolute;
-  left: 0;
-  top: 0;
-  color: transparent;
-  -webkit-text-stroke: 0;
-  background-image: var(--fill);
-  -webkit-background-clip: text;
-  background-clip: text;
-}
-
-/* --- Top row (round buttons; the top-left corner is Boxity's toolbar) ------------------------------------ */
-.hud-top {
-  position: absolute;
-  left: var(--sl);
-  right: var(--sr);
-  top: var(--st);
-  height: 0;
-}
-
-/* --- Timer ------------------------------------------------------------------------------- */
-.hud-timer {
-  --w: calc(466 * var(--u));
-  position: absolute;
-  left: 50%;
-  top: calc(17 * var(--u));
-  width: var(--w);
-  height: calc(65 * var(--u));
-  margin-left: calc(var(--w) / -2);
-  container-type: inline-size;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(64, 112, 168, 0.5);
-}
-.timer-text {
-  font-size: 12.5cqw;
-  font-variant-numeric: tabular-nums;
+  text-shadow: 0 calc(var(--u) * 3) 0 #1a1230;
   letter-spacing: 0.01em;
+  line-height: 1;
+  white-space: nowrap;
 }
 
-/* --- Podium: 1st / 2nd / 3rd medals hanging under the timer ------------------------------- */
-.hud-podium {
-  --m: calc(92 * var(--u));
-  position: absolute;
-  left: 50%;
-  top: calc(var(--st) + 97 * var(--u));
-  display: flex;
-  gap: calc(30 * var(--u));
-  margin-left: calc(-168 * var(--u)); /* (3 medals + 2 gaps) / 2 */
-}
-.hud-podium.empty {
-  display: none;
-}
-.medal {
-  --ring: #ffc21a;
-  --inner: #ffe680;
-  position: relative;
-  width: var(--m);
-  height: var(--m);
-  border-radius: 50%;
-  border: max(2px, calc(6 * var(--u))) solid var(--ring);
-  background: radial-gradient(circle at 50% 38%, #fffbe6, var(--inner));
-  box-shadow: 0 0 0 max(1px, calc(2 * var(--u))) var(--ink);
-}
-.medal-2 {
-  --ring: #d5d9e0;
-  --inner: #a9b0bb;
-}
-.medal-3 {
-  --ring: #e0662a;
-  --inner: #f0a060;
-}
-.medal-ribbon {
-  position: absolute;
-  left: 50%;
-  bottom: 55%;
-  z-index: -1; /* behind the medal and the timer panel */
-  width: var(--m);
-  height: calc(var(--m) * 1.15); /* reaches up behind the timer */
-  margin-left: calc(var(--m) * -0.5);
-}
-.medal-face {
-  position: absolute;
-  inset: 6% 8% 10%;
-}
-.medal-label {
-  position: absolute;
-  left: 50%;
-  bottom: calc(var(--m) * -0.17);
-  transform: translateX(-50%);
-  font-size: calc(var(--m) * 0.39);
-  --fill: linear-gradient(#fff36a 20%, #ffa400 85%);
-}
-.medal-2 .medal-label {
-  --fill: linear-gradient(#ffffff 20%, #aab2c0 85%);
-}
-.medal-3 .medal-label {
-  --fill: linear-gradient(#ffc08a 20%, #e2401a 85%);
-}
-
-/* --- Once a Day ----------------------------------------------------------------------------- */
-.hud-daily {
-  position: absolute;
-  left: calc(50% + 280 * var(--u));
-  top: calc(8 * var(--u));
-  width: calc(150 * var(--u));
-  height: calc(98 * var(--u));
-}
-.daily-gift {
-  position: absolute;
-  left: calc(12 * var(--u));
-  top: calc(-6 * var(--u));
-  width: calc(86 * var(--u));
-  height: calc(76 * var(--u));
-  transform: rotate(-8deg);
-}
-.daily-count {
-  position: absolute;
-  left: calc(62 * var(--u));
-  top: calc(14 * var(--u));
-  display: flex;
-  align-items: center;
-  gap: calc(2 * var(--u));
-}
-.daily-gem {
-  width: calc(32 * var(--u));
-  height: calc(32 * var(--u));
-  filter: hue-rotate(180deg) saturate(1.4);
-}
-.daily-num {
-  font-size: calc(40 * var(--u));
-  --fill: linear-gradient(#b9ff6a, #1fbf2a);
-}
-.daily-label {
-  position: absolute;
-  left: 50%;
-  bottom: 0;
-  transform: translateX(-50%);
-  font-size: calc(27 * var(--u));
-  color: #ff2626;
-  -webkit-text-stroke: calc(2 * var(--o)) #fff;
-}
-
-/* --- Top-right round buttons --------------------------------------------------------------------- */
-.hud-tr {
-  position: absolute;
-  right: calc(15 * var(--u));
-  top: calc(14 * var(--u));
-  display: flex;
-  gap: calc(14 * var(--u));
-}
-.hud-round {
-  width: max(var(--tap), calc(56 * var(--u)));
-  height: max(var(--tap), calc(56 * var(--u)));
-  --icon: 62%;
-  border-radius: 50%;
-  background: var(--panel);
-}
-.hud-dot {
-  position: absolute;
-  top: 2%;
-  right: 2%;
-  width: 22%;
-  height: 22%;
-  border-radius: 50%;
-  background: #ff5a1f;
-  box-shadow: 0 0 0 max(1px, calc(2 * var(--u))) rgba(0, 0, 0, 0.35);
-}
-
-/* --- Left: CLAIM + menu tiles ------------------------------------------------------------------------- */
+/* --- Left column -------------------------------------------------------------------- */
 .hud-left {
-  --tile: max(var(--tap), calc(88 * var(--u)));
   position: absolute;
-  left: calc(var(--sl) + 10 * var(--u));
-  top: calc(var(--st) + 240 * var(--u));
-}
-.hud-claim {
-  width: calc(212 * var(--u));
-  height: calc(72 * var(--u));
-  min-height: var(--tap);
-}
-.hud-claim::before {
-  content: '';
-  position: absolute;
-  left: calc(56 * var(--u));
-  right: 0;
-  top: calc(16 * var(--u));
-  bottom: calc(2 * var(--u));
-  border: max(1.5px, calc(3 * var(--u))) solid var(--ink);
-  border-radius: calc(14 * var(--u));
-  background: linear-gradient(#ffffff, #d9dde4);
-  box-shadow: inset 0 calc(-5 * var(--u)) 0 rgba(0, 0, 0, 0.1);
-}
-.claim-gift {
-  position: absolute;
-  left: 0;
-  top: calc(4 * var(--u));
-  width: calc(68 * var(--u));
-  height: calc(68 * var(--u));
-}
-.claim-badge {
-  position: absolute;
-  left: calc(44 * var(--u));
-  top: 0;
-  width: calc(30 * var(--u));
-  height: calc(30 * var(--u));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: #3fcf3a;
-  box-shadow: 0 0 0 max(1px, calc(2 * var(--u))) #fff;
-  font-size: calc(19 * var(--u));
-}
-.claim-text {
-  position: absolute;
-  left: calc(80 * var(--u));
-  top: calc(26 * var(--u));
-  font-size: calc(37 * var(--u));
-  --fill: linear-gradient(#fff56a 20%, #ffb000 80%);
-}
-.hud-grid {
-  display: grid;
-  grid-template-columns: var(--tile) var(--tile);
-  gap: calc(16 * var(--u)) calc(20 * var(--u));
-  margin: calc(18 * var(--u)) 0 0 calc(15 * var(--u));
-}
-.hud-tile {
-  width: var(--tile);
-  height: var(--tile);
-  border: max(1.5px, calc(3 * var(--u))) solid #0d2a5c;
-  border-radius: calc(14 * var(--u));
-  background: linear-gradient(#58b8ff, #1e6fe6);
-  box-shadow:
-    inset 0 calc(3 * var(--u)) 0 rgba(255, 255, 255, 0.35),
-    inset 0 calc(-5 * var(--u)) 0 rgba(0, 0, 0, 0.18);
-}
-.tile-store {
-  border-color: #5a1a08;
-  background: linear-gradient(#ffa046, #ee4d1c);
-}
-.tile-icon img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-.tile-icon {
-  position: absolute;
-  left: 8%;
-  right: 8%;
-  top: 3%;
-  height: 68%;
-}
-.tile-label {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 4%;
-  text-align: center;
-  font-size: calc(var(--tile) * 0.28);
-}
-.tile-alert {
-  position: absolute;
-  top: -12%;
-  right: -12%;
-  width: 36%;
-  height: 36%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: #ff2a2a;
-  box-shadow: 0 0 0 max(1.5px, calc(3 * var(--u))) #fff;
-  font-size: calc(var(--tile) * 0.26);
-}
-
-/* --- Right: promos, stats, autos, boosts ------------------------------------------------------------- */
-.hud-right {
-  position: absolute;
-  right: calc(var(--sr) + 30 * var(--u));
-  top: calc(var(--st) + 228 * var(--u));
+  top: var(--col-top, max(calc(var(--reserved-top) + 12px), 29vh));
+  left: var(--col-left, calc(var(--safe-l) + var(--u) * 28));
   display: flex;
   flex-direction: column;
-  gap: calc(13 * var(--u));
+  gap: calc(var(--u) * 18);
+  align-items: flex-start;
 }
-.right-a,
-.right-b {
-  /* wide enough for three boosts once they grow to --tap */
-  width: var(--rw);
-  display: flex;
-  flex-direction: column;
-  gap: calc(13 * var(--u));
-}
-.hud-promos {
-  display: flex;
-  justify-content: space-between;
-  height: calc(85 * var(--u));
-}
-.promo {
-  width: calc(72 * var(--u));
-  height: 100%;
-}
-.promo-icon {
-  position: absolute;
-  left: calc(4 * var(--u));
-  top: 0;
-  width: calc(64 * var(--u));
-  height: calc(64 * var(--u));
-}
-.promo-label {
-  position: absolute;
-  left: 50%;
-  bottom: calc(4 * var(--u));
-  transform: translateX(-50%);
-  font-size: calc(20 * var(--u));
-}
-.ready-title {
-  position: absolute;
-  left: 50%;
-  top: calc(20 * var(--u));
-  transform: translateX(-50%);
-  font-size: calc(23 * var(--u));
-}
-.ready-free {
-  position: absolute;
-  left: 50%;
-  bottom: calc(6 * var(--u));
-  transform: translateX(-50%);
-  font-size: calc(19 * var(--u));
-  color: #4dff4a;
-}
-.statue-only {
-  position: absolute;
-  right: calc(-6 * var(--u));
-  top: calc(-4 * var(--u));
-  transform: rotate(14deg);
-  font-size: calc(14 * var(--u));
-  color: #ffe14a;
-}
-.statue-x20 {
-  position: absolute;
-  right: 0;
-  bottom: calc(4 * var(--u));
-  display: flex;
-  align-items: center;
-  font-size: calc(22 * var(--u));
-  color: #ffe14a;
-}
-.statue-trophy {
-  width: calc(22 * var(--u));
-  height: calc(22 * var(--u));
-}
-
-.hud-stats {
-  display: flex;
-  flex-direction: column;
-  gap: calc(13 * var(--u));
-}
-.hud-stat {
+.hud-bp {
   position: relative;
-  height: calc(45 * var(--u));
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  padding-right: calc(54 * var(--u));
-  border-radius: calc(22 * var(--u));
-  background: linear-gradient(#ffffff, #e2e5ea);
-  box-shadow: 0 calc(2 * var(--u)) calc(4 * var(--u)) rgba(0, 0, 0, 0.18);
+  height: calc(var(--u) * 84);
+  margin-left: calc(var(--u) * -18);
 }
-.stat-num {
-  font-size: calc(34 * var(--u));
+.hud-bp .bell {
+  width: calc(var(--u) * 82);
+  height: calc(var(--u) * 92);
+  position: relative;
+  z-index: 2;
+  filter: drop-shadow(0 calc(var(--u) * 3) 0 #6b2a00);
 }
-.stat-trophies .stat-num {
-  --fill: linear-gradient(#fff07a 15%, #ff9a00 85%);
+.hud-bp .banner {
+  margin-left: calc(var(--u) * -34);
+  padding: calc(var(--u) * 16) calc(var(--u) * 16) calc(var(--u) * 14) calc(var(--u) * 40);
+  background: linear-gradient(180deg, #ff8a2a 0%, #f2541c 55%, #d9381a 100%);
+  border: calc(var(--u) * 4) solid #6b1e08;
+  border-radius: calc(var(--u) * 8);
+  font-size: calc(var(--u) * 30);
+  box-shadow: inset 0 calc(var(--u) * 4) 0 rgba(255, 255, 255, 0.35);
 }
-.stat-wins .stat-num {
-  --fill: linear-gradient(#a6ecff 15%, #1f6dff 85%);
-}
-.stat-gems .stat-num {
-  --fill: linear-gradient(#ffb0f2 15%, #ff1fbf 85%);
-}
-.stat-icon {
+.hud-bp .tag {
   position: absolute;
-  right: calc(-8 * var(--u));
-  top: 50%;
-  width: calc(58 * var(--u));
-  height: calc(58 * var(--u));
-  transform: translateY(-50%);
+  right: calc(var(--u) * -6);
+  top: calc(var(--u) * -6);
+  background: #e0201f;
+  padding: calc(var(--u) * 2) calc(var(--u) * 8);
+  font-size: calc(var(--u) * 19);
+  font-style: italic;
+  border-radius: calc(var(--u) * 3);
+  -webkit-text-stroke: calc(var(--u) * 3) #5a0a0a;
 }
-
-.hud-autos {
-  display: flex;
-  flex-direction: column;
-  gap: calc(14 * var(--u));
-  margin-top: calc(1 * var(--u));
-}
-.hud-auto {
-  height: max(var(--tap), calc(57 * var(--u)));
+.hud-big {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: calc(6 * var(--u));
-  padding-left: calc(10 * var(--u));
-  border: max(2px, calc(4 * var(--u))) solid #ff9e9e;
-  border-radius: calc(10 * var(--u));
-  background: linear-gradient(#ff5e5e, #e0252b);
-  box-shadow: 0 0 0 max(1px, calc(2 * var(--u))) #6e0d10;
+  gap: calc(var(--u) * 10);
+  width: calc(var(--u) * 236);
+  height: calc(var(--u) * 78);
+  padding: 0 calc(var(--u) * 12);
+  border: calc(var(--u) * 4) solid #12102a;
+  border-radius: calc(var(--u) * 4);
+  font-size: calc(var(--u) * 46);
+  box-shadow: inset 0 calc(var(--u) * -6) 0 rgba(0, 0, 0, 0.18), inset 0 calc(var(--u) * 5) 0 rgba(255, 255, 255, 0.3);
 }
-.hud-auto.on {
-  border-color: #b8ffb0;
-  background: linear-gradient(#5fe25a, #1fa52a);
-  box-shadow: 0 0 0 max(1px, calc(2 * var(--u))) #0b4a10;
-}
-.auto-icon {
+.hud-big svg {
+  width: calc(var(--u) * 62);
+  height: calc(var(--u) * 54);
   flex: none;
-  width: calc(42 * var(--u));
-  height: calc(42 * var(--u));
+  filter: drop-shadow(0 calc(var(--u) * 2) 0 #1a1230);
 }
-.auto-label {
-  font-size: calc(27 * var(--u));
+.hud-shop {
+  background: linear-gradient(90deg, #ff2d55, #ff9d00, #ffe600, #3ddc4c, #19b8ff, #8a3cff, #ff2dd0);
+  background-size: 200% 100%;
+  animation: hud-rainbow 4s linear infinite;
 }
-
-.hud-boosts {
-  display: flex;
-  gap: calc(8 * var(--u));
-  margin: calc(3 * var(--u)) 0 0 calc(7 * var(--u));
+.hud-index {
+  background: linear-gradient(180deg, #5fd8ff, #1aa0ff);
 }
-.hud-boost {
-  --c: #ffc21a;
-  flex: none;
-  width: max(var(--tap), calc(56 * var(--u)));
-  height: max(var(--tap), calc(56 * var(--u)));
+@keyframes hud-rainbow {
+  to { background-position: 200% 0; }
+}
+.hud-badge {
+  position: absolute;
+  right: calc(var(--u) * -14);
+  top: calc(var(--u) * -14);
+  width: calc(var(--u) * 34);
+  height: calc(var(--u) * 34);
   border-radius: 50%;
-  border: max(2px, calc(4 * var(--u))) solid var(--c);
-  background: radial-gradient(circle at 50% 35%, var(--hi), var(--lo));
-  box-shadow: 0 0 0 max(1px, calc(2 * var(--u))) var(--ink);
+  background: #e8121e;
+  border: calc(var(--u) * 3) solid #fff;
+  font-size: calc(var(--u) * 24);
+  display: grid;
+  place-items: center;
 }
-.boost-gold {
-  --hi: #fff1a0;
-  --lo: #f2a900;
+.hud-slow {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--u) * 10);
+  font-size: calc(var(--u) * 21);
+  min-height: 44px;
 }
-.boost-blue {
-  --c: #3aa6ff;
-  --hi: #b4ecff;
-  --lo: #2a74e8;
+.hud-slow .sw {
+  width: calc(var(--u) * 88);
+  height: calc(var(--u) * 52);
+  border-radius: calc(var(--u) * 8);
+  background: rgba(40, 40, 52, 0.7);
+  border: calc(var(--u) * 3) solid rgba(20, 20, 30, 0.8);
+  position: relative;
+  transition: background 0.2s;
 }
-.boost-purple {
-  --c: #b45cff;
-  --hi: #7a52c8;
-  --lo: #2c1658;
-}
-.boost-icon {
+.hud-slow .knob {
   position: absolute;
-  inset: 14%;
+  top: calc(var(--u) * 6);
+  left: calc(var(--u) * 6);
+  width: calc(var(--u) * 30);
+  height: calc(var(--u) * 34);
+  border-radius: calc(var(--u) * 5);
+  background: #8b8b95;
+  transition: transform 0.2s, background 0.2s;
 }
-.boost-label {
-  position: absolute;
-  right: -8%;
-  bottom: -8%;
-  font-size: calc(21 * var(--u));
+.hud-slow.on .sw {
+  background: rgba(40, 170, 70, 0.85);
+}
+.hud-slow.on .knob {
+  transform: translateX(calc(var(--u) * 42));
+  background: #fff;
+}
+.hud-slow .txt {
+  -webkit-text-stroke: calc(var(--u) * 4) #1a1230;
 }
 
-/* --- Bottom: hotbar + distance bars --------------------------------------------------------------------- */
-.hud-bottom {
-  --side: 0px; /* room kept free on each side (touch buttons) */
-  --lift: 0px; /* raise above the touch buttons */
+/* --- Money (bottom left) --------------------------------------------------------------- */
+.hud-money {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: calc(var(--sb) + 10 * var(--u) + var(--lift));
-  width: min(calc(1044 * var(--u)), calc(100% - 2 * var(--side) - var(--sl) - var(--sr) - 24px - 30 * var(--u)));
-  margin: 0 auto;
+  left: calc(var(--safe-l) + var(--u) * 40);
+  bottom: calc(var(--safe-b) + var(--u) * 36);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: calc(12 * var(--u));
+  gap: calc(var(--u) * 6);
 }
-.hud-hotbar {
+.hud-money .row {
   display: flex;
   align-items: center;
-  gap: calc(17 * var(--u));
+  gap: calc(var(--u) * 14);
+}
+.hud-money .ico {
+  width: calc(var(--u) * 86);
+  height: calc(var(--u) * 70);
+  position: relative;
+  flex: none;
+}
+.hud-money .plus {
+  position: absolute;
+  right: calc(var(--u) * 2);
+  bottom: calc(var(--u) * -6);
+  width: calc(var(--u) * 34);
+  height: calc(var(--u) * 34);
+  background: #ffc21a;
+  border: calc(var(--u) * 3) solid #3a2200;
+  border-radius: calc(var(--u) * 5);
+  color: #fff;
+  font-size: calc(var(--u) * 30);
+  display: grid;
+  place-items: center;
+  line-height: 1;
+  -webkit-text-stroke: calc(var(--u) * 3) #3a2200;
+  paint-order: stroke fill;
+}
+.hud-gems {
+  font-size: calc(var(--u) * 52);
+  color: #4fb2ff;
+}
+.hud-cash {
+  font-size: calc(var(--u) * 58);
+  color: #57f53a;
+}
+
+/* --- Hotbar (bottom centre) ------------------------------------------------------------- */
+.hud-hotbar {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--safe-b) + var(--u) * 12);
+  transform: translateX(-50%);
+  display: flex;
+  gap: calc(var(--u) * 16);
 }
 .hud-slot {
-  width: max(var(--tap), calc(80 * var(--u)));
-  height: max(var(--tap), calc(78 * var(--u)));
-  --icon: 80%;
-  border: max(1.5px, calc(3 * var(--u))) solid #f2d84a;
-  border-radius: calc(12 * var(--u));
-  background: rgba(214, 220, 228, 0.5);
+  position: relative;
+  width: calc(var(--u) * 98);
+  height: calc(var(--u) * 98);
+  min-width: 44px;
+  min-height: 44px;
+  background: rgba(40, 40, 46, 0.62);
+  border-radius: calc(var(--u) * 8);
+  border: calc(var(--u) * 3) solid transparent;
+  display: grid;
+  place-items: center;
+  font-weight: 600;
 }
 .hud-slot.sel {
   border-color: #fff;
-  background: rgba(255, 255, 255, 0.65);
-  box-shadow: 0 0 0 max(1.5px, calc(3 * var(--u))) #f2d84a;
 }
-.slot-divider {
-  width: max(2px, calc(4 * var(--u)));
-  height: calc(72 * var(--u));
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.9);
-}
-
-.hud-bars {
-  position: relative;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: calc(7 * var(--u));
-}
-.bar-row {
-  position: relative;
-  display: flex;
-  height: calc(36 * var(--u));
-  min-height: 14px;
-  outline: max(1px, calc(2 * var(--u))) solid rgba(20, 20, 30, 0.45);
-}
-.bar-seg {
-  flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: visible;
-}
-.bar-label {
-  font-size: max(10px, calc(23 * var(--u)));
-}
-.bar-row-0 .bar-label {
-  font-size: max(11px, calc(25 * var(--u)));
-}
-.bar-gem {
+.hud-slot .n {
   position: absolute;
-  right: calc(-28 * var(--u));
-  top: 50%;
-  width: calc(56 * var(--u));
-  height: calc(56 * var(--u));
-  transform: translateY(-50%);
+  left: calc(var(--u) * 8);
+  top: calc(var(--u) * 4);
+  font-size: calc(var(--u) * 19);
 }
-.bar-marker,
-.bar-racer {
-  --row: 2;
+.hud-slot .nm {
   position: absolute;
-  top: calc(var(--row) * 43 * var(--u) - 4 * var(--u));
-}
-.bar-racer {
-  width: calc(44 * var(--u));
-  height: calc(44 * var(--u));
-  margin-left: calc(-22 * var(--u));
-  filter: drop-shadow(0 calc(2 * var(--u)) calc(2 * var(--u)) rgba(0, 0, 0, 0.35));
-  transition: left 0.3s, top 0.3s;
-}
-.bar-marker {
-  top: calc(var(--row) * 43 * var(--u) - 19 * var(--u));
-  z-index: 1;
-  width: calc(46 * var(--u));
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  transform: translateX(-50%);
-  transition: left 0.3s;
-}
-.marker-arrow {
-  width: 0;
-  height: 0;
-  border-left: calc(10 * var(--u)) solid transparent;
-  border-right: calc(10 * var(--u)) solid transparent;
-  border-top: calc(15 * var(--u)) solid #fff;
-  filter: drop-shadow(0 0 max(1px, calc(1.5 * var(--u))) #000) drop-shadow(0 0 max(1px, calc(1.5 * var(--u))) #000);
-}
-.marker-head {
-  width: calc(46 * var(--u));
-  height: calc(46 * var(--u));
-}
-/* A racer's Bloxity profile picture (bar heads, the player's marker, podium medals; hud.js paintFace) */
-.racer-pfp {
-  display: block;
-  width: 100%;
-  height: 100%;
-  box-sizing: border-box;
-  border-radius: 50%;
-  border: max(2px, calc(3 * var(--u))) solid #fff;
-  background: #cfe6ff;
-  object-fit: cover;
-  pointer-events: none;
-}
-
-/* --- Bottom-left boosts ------------------------------------------------------------------------------------ */
-.hud-bl {
-  position: fixed;
-  left: calc(var(--sl) + 8 * var(--u));
-  bottom: calc(var(--sb) + 6 * var(--u));
-  display: flex;
-  gap: calc(14 * var(--u));
-}
-.bl-item {
-  width: max(var(--tap), calc(50 * var(--u)));
-  height: max(var(--tap), calc(56 * var(--u)));
-}
-.bl-icon {
-  position: absolute;
+  bottom: calc(var(--u) * 4);
   left: 0;
-  top: 0;
-  width: 100%;
-  height: 84%;
+  right: 0;
+  text-align: center;
+  font-size: calc(var(--u) * 15);
+  font-weight: 500;
 }
-.bl-label {
+.hud-slot svg {
+  width: calc(var(--u) * 66);
+  height: calc(var(--u) * 66);
+}
+.hud-slot .cnt {
+  position: absolute;
+  top: calc(var(--u) * 30);
+  font-size: calc(var(--u) * 40);
+  -webkit-text-stroke: calc(var(--u) * 5) #1a1230;
+  paint-order: stroke fill;
+}
+
+/* --- Ride My Bike (bottom centre, above the hotbar; only past the SAFE ZONE) ---------- */
+.hud-ride {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--safe-b) + var(--u) * 184);
+  transform: translateX(-50%);
+  display: none;
+  align-items: center;
+  gap: calc(var(--u) * 12);
+}
+.hud-ride.show {
+  display: flex;
+}
+.hud-ride-go {
+  min-width: calc(var(--u) * 238);
+  height: calc(var(--u) * 104);
+  min-height: 44px;
+  padding: 0 calc(var(--u) * 14);
+  border: calc(var(--u) * 5) solid #0d4a12;
+  border-radius: calc(var(--u) * 4);
+  background:
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0 calc(var(--u) * 10), transparent calc(var(--u) * 10) calc(var(--u) * 20)),
+    linear-gradient(180deg, #8cff4a 0%, #45e02a 45%, #22b01a 100%);
+  box-shadow: inset 0 calc(var(--u) * -7) 0 rgba(0, 0, 0, 0.2), inset 0 calc(var(--u) * 5) 0 rgba(255, 255, 255, 0.35);
+  font-size: calc(var(--u) * 34);
+}
+.hud-ride-go .ot {
+  -webkit-text-stroke: calc(var(--u) * 6) #0f3a12;
+}
+.hud-ride-gear {
+  width: calc(var(--u) * 82);
+  height: calc(var(--u) * 82);
+  min-width: 44px;
+  min-height: 44px;
+  border: calc(var(--u) * 4) solid #3a4258;
+  border-radius: calc(var(--u) * 4);
+  background: linear-gradient(180deg, #8d97ab, #6a748a);
+  display: grid;
+  place-items: center;
+}
+.hud-ride-gear svg {
+  width: 72%;
+  height: 72%;
+}
+
+/* --- Right side -------------------------------------------------------------------------- */
+.hud-topright {
+  position: absolute;
+  right: calc(var(--safe-r) + var(--u) * 14);
+  top: calc(var(--safe-t) + var(--u) * 14);
+  display: flex;
+  gap: calc(var(--u) * 10);
+  align-items: center;
+}
+.touch-ui .hud-topright {
+  top: calc(var(--safe-t) + 64px);
+}
+.hud-sound {
+  width: max(44px, calc(var(--u) * 54));
+  height: max(44px, calc(var(--u) * 54));
+  border-radius: 50%;
+  background: rgba(22, 22, 26, 0.86);
+  display: grid;
+  place-items: center;
+}
+.hud-sound svg {
+  width: 62%;
+  height: 62%;
+}
+.hud-sound .cross {
+  display: none;
+}
+.hud-sound.muted .cross {
+  display: block;
+}
+.hud-sound.muted .waves {
+  display: none;
+}
+.hud-daily {
+  background: rgba(22, 22, 26, 0.86);
+  border-radius: calc(var(--u) * 28);
+  padding: calc(var(--u) * 15) calc(var(--u) * 20);
+  font-size: calc(var(--u) * 17);
+  font-weight: 600;
+  min-height: 44px;
+}
+.hud-starter {
+  position: absolute;
+  right: calc(var(--safe-r) + var(--u) * 36);
+  top: calc(var(--safe-t) + var(--u) * 106);
+  width: calc(var(--u) * 180);
+  height: calc(var(--u) * 170);
+}
+.touch-ui .hud-starter {
+  top: calc(var(--safe-t) + 64px + var(--u) * 80);
+}
+.hud-starter .rays {
+  position: absolute;
+  inset: calc(var(--u) * -20);
+  background: repeating-conic-gradient(rgba(255, 255, 255, 0.55) 0 8deg, transparent 8deg 22deg);
+  -webkit-mask: radial-gradient(circle, #000 25%, transparent 68%);
+  mask: radial-gradient(circle, #000 25%, transparent 68%);
+  animation: hud-spin 9s linear infinite;
+}
+@keyframes hud-spin {
+  to { transform: rotate(360deg); }
+}
+.hud-starter svg {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%);
+  width: calc(var(--u) * 150);
+  height: calc(var(--u) * 150);
+}
+.hud-starter .ot {
   position: absolute;
   left: 50%;
   bottom: 0;
   transform: translateX(-50%);
-  font-size: max(10px, calc(17 * var(--u)));
+  font-size: calc(var(--u) * 30);
+  color: #4fe0ff;
+  -webkit-text-stroke: calc(var(--u) * 6) #0b2a55;
 }
-
-/* ============================================================================================
-   Adaptations. Desktop keeps the reference layout above; touch screens grow every
-   control to --tap and keep the joystick (bottom-left) and JUMP/RUN/CAM cluster
-   (bottom-right, sizes copied from touch.css) clear.
-   ============================================================================================ */
-.hud {
-  --rw: max(calc(210 * var(--u)), calc(3 * var(--tap) + 30 * var(--u))); /* right column */
-  --cluster: calc(clamp(72px, 20vmin, 100px) + clamp(52px, 14vmin, 70px) + 12px + clamp(12px, 3vmin, 24px));
+.hud-x2 {
+  position: absolute;
+  right: calc(var(--safe-r) + var(--u) * 24);
+  top: 44vh;
+  width: calc(var(--u) * 236);
+  height: calc(var(--u) * 86);
+  border: calc(var(--u) * 4) solid #12102a;
+  border-radius: calc(var(--u) * 4);
+  background: linear-gradient(90deg, #ff2d55, #ff9d00, #ffe600, #3ddc4c, #19b8ff, #8a3cff, #ff2dd0);
+  background-size: 200% 100%;
+  animation: hud-rainbow 4s linear infinite;
+  overflow: visible;
 }
-/* Boxity's toolbar has the menu (with Reset Character), so the touch layer's own
-   top-right buttons would only cover the round buttons. */
-.touch-ui .touch-top {
-  display: none;
+.hud-x2 .shield {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--u) * -12);
+  transform: translateX(-38%);
+  width: calc(var(--u) * 78);
+  height: calc(var(--u) * 92);
+  opacity: 0.95;
 }
-/* Compact right column on touch: the full-width AUTO bars and the row of three boost
-   circles covered the middle of a phone screen. The autos become two TRAIN / RACE
-   tiles side by side and the boosts (one action) fan into an overlapping stack. */
-.touch-ui .hud {
-  --rw: max(calc(210 * var(--u)), calc(2 * var(--tap) + 6px));
-}
-.touch-ui .hud-autos {
-  flex-direction: row;
-  gap: 6px;
-  margin-top: 0;
-}
-.touch-ui .hud-auto {
-  flex: 1 1 0;
-  min-width: var(--tap);
-  height: var(--tap);
-  flex-direction: column;
-  justify-content: center;
-  gap: 1px;
-  padding: 0;
-  border-radius: 10px;
-}
-.touch-ui .auto-icon {
-  width: 22px;
-  height: 22px;
-}
-.touch-ui .auto-label {
-  font-size: 10px;
-  --o: 1px;
-}
-.touch-ui .auto-pre {
-  display: none;
-}
-.touch-ui .hud-boosts {
-  margin: 0;
-}
-.touch-ui .hud-boost + .hud-boost {
-  margin-left: calc(var(--tap) * -0.55);
-}
-.touch-ui .boost-label {
-  display: none;
-}
-/* Boosts sit beside the hotbar on touch: the corner belongs to the joystick. */
-.touch-ui .hud-bl {
+.hud-x2 .t1 {
   position: absolute;
   left: 0;
-  top: 0;
+  right: 0;
+  top: calc(var(--u) * 10);
+  text-align: center;
+  font-size: calc(var(--u) * 44);
 }
-
-/* --- Touch, landscape: top row (round buttons) on the right, bars stay between the joystick and the buttons. */
-.touch-ui .hud:not(.portrait) .hud-top {
+.hud-x2 .t2 {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--u) * 2);
+  text-align: center;
+  font-size: calc(var(--u) * 24);
+  -webkit-text-stroke: calc(var(--u) * 4) #1a1230;
+}
+.hud-x2 .t2 i {
+  display: inline-block;
+  width: calc(var(--u) * 20);
+  height: calc(var(--u) * 20);
+  border-radius: 50%;
+  border: calc(var(--u) * 4) solid #3aff6a;
+  background: #0b5a20;
+  vertical-align: middle;
+}
+.hud-boost {
+  position: absolute;
+  right: calc(var(--safe-r) + var(--u) * 138);
+  bottom: calc(var(--safe-b) + var(--u) * 180);
+  width: calc(var(--u) * 64);
+  text-align: center;
+}
+.hud-boost svg {
+  width: calc(var(--u) * 58);
+  height: calc(var(--u) * 50);
+  margin: 0 auto;
+}
+.hud-boost .x {
+  position: absolute;
+  top: calc(var(--u) * -10);
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: calc(var(--u) * 24);
+  color: #57f53a;
+}
+.hud-boost .tm {
+  font-size: calc(var(--u) * 20);
+  margin-top: calc(var(--u) * -8);
+}
+.hud-timers {
+  position: absolute;
+  right: calc(var(--safe-r) + var(--u) * 30);
+  bottom: calc(var(--safe-b) + var(--u) * 30);
   display: flex;
+  flex-direction: column;
+  gap: calc(var(--u) * 14);
   align-items: flex-start;
-  justify-content: flex-end; /* the top-left corner is Boxity's toolbar */
-  gap: 10px;
-  padding: calc(15 * var(--u)) calc(15 * var(--u)) 0 calc(20 * var(--u));
 }
-.touch-ui .hud:not(.portrait) .hud-top > * {
-  position: relative;
-  left: auto;
-  right: auto;
-  top: auto;
-  margin: 0;
+.hud-timers .row {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--u) * 16);
+  font-size: calc(var(--u) * 42);
+}
+.hud-timers svg {
+  width: calc(var(--u) * 60);
+  height: calc(var(--u) * 60);
   flex: none;
 }
-.touch-ui .hud:not(.portrait) .hud-timer {
-  flex: 0 1 var(--w);
-  min-width: 110px;
-  height: max(var(--tap), calc(65 * var(--u)));
-  margin-left: auto;
-}
-.touch-ui .hud:not(.portrait) .hud-daily {
-  min-width: 64px;
-  min-height: 46px;
-  margin-right: auto;
-}
-.touch-ui .hud:not(.portrait) .hud-podium {
-  top: calc(var(--st) + 8px);
-}
-.touch-ui .hud:not(.portrait) .hud-bottom {
-  --side: var(--cluster);
+.hud-timers .now {
+  color: #57f53a;
 }
 
-/* Podium on touch: small medals without ribbons, up in the free middle of the top row
-   (in landscape it hung right over the boat). */
-.touch-ui .hud .hud-podium {
-  --m: 32px;
-  gap: 8px;
-  margin-left: -52px; /* (3 x 32 + 2 x 8) / 2 */
+.hud-announce {
+  position: absolute;
+  left: 50%;
+  top: 26vh;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  transform: translate(-50%, -50%) scale(0.6);
+  font-size: calc(var(--u) * 46);
+  text-align: center;
+  line-height: 1.1;
+  opacity: 0;
+  transition: opacity 0.3s, transform 0.3s cubic-bezier(0.2, 1.6, 0.4, 1);
 }
-.touch-ui .medal {
-  border-width: 2px;
+.hud .hud-announce {
+  white-space: normal; /* wraps on narrow screens */
 }
-.touch-ui .medal-ribbon {
+.hud-announce.show {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+/* Secret rarity: dark letters with a light outline. */
+.hud-announce .bike {
+  color: #2a2a30;
+  -webkit-text-stroke: calc(var(--u) * 7) #b9bcc6;
+  text-shadow: 0 calc(var(--u) * 3) 0 #1a1230;
+}
+.hud-zonecard {
+  position: absolute;
+  left: 50%;
+  top: 34vh;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  opacity: 0;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+}
+.hud-zonecard.show {
+  animation: hud-zone 3.6s ease-out forwards;
+}
+@keyframes hud-zone {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
+  10% { opacity: 1; transform: translate(-50%, -50%) scale(1.06); }
+  16% { transform: translate(-50%, -50%) scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -60%) scale(1); }
+}
+.hud-zonecard .k {
+  font-size: calc(var(--u) * 34);
+  color: #ffe14a;
+}
+.hud-zonecard .n {
+  font-size: calc(var(--u) * 78);
+  -webkit-text-stroke: calc(var(--u) * 10) #0a0a18;
+  white-space: normal;
+}
+.hud-zonecard .i {
+  margin-top: calc(var(--u) * 8);
+  font-size: calc(var(--u) * 24);
+  font-weight: 600;
+  -webkit-text-stroke: calc(var(--u) * 5) #0a0a18;
+  white-space: normal;
+}
+.hud-zonepill {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--safe-t) + var(--u) * 18);
+  transform: translateX(-50%);
+  padding: calc(var(--u) * 8) calc(var(--u) * 18);
+  border-radius: calc(var(--u) * 30);
+  background: rgba(10, 10, 24, 0.55);
+  font-size: calc(var(--u) * 24);
+  -webkit-text-stroke: calc(var(--u) * 4) #0a0a18;
   display: none;
 }
-.touch-ui .medal-label {
-  bottom: -8px;
-  font-size: 12px;
-  --o: 1px;
+.hud-zonepill.show {
+  display: block;
 }
-/* The menu tiles go 3 x 2 so the left column ends well above the joystick. */
-.touch-ui .hud:not(.portrait) .hud-grid {
-  grid-template-columns: repeat(3, var(--tile));
-  gap: 6px;
-  margin: 6px 0 0;
+.hud-toast {
+  position: absolute;
+  left: 50%;
+  top: 22vh;
+  transform: translate(-50%, -10px);
+  font-size: calc(var(--u) * 34);
+  opacity: 0;
+  transition: opacity 0.25s, transform 0.25s;
 }
-.touch-ui .hud.short .hud-left {
-  top: calc(var(--st) + 15 * var(--u) + var(--tap) + 8px);
-}
-
-/* Phone landscape: the right column splits in two so it ends above the buttons. */
-.touch-ui .hud.short .hud-right {
-  top: calc(var(--st) + 15 * var(--u) + var(--tap) + 8px);
-  flex-direction: row-reverse;
-  align-items: flex-start;
-  gap: 10px;
+.hud-toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
-/* --- Portrait: round buttons in a 3x2 grid, timer under the logo, daily between the columns. */
-.hud.portrait .hud-tr {
-  display: grid;
-  grid-template-columns: repeat(3, auto);
+/* Touch: the thumb controls own the bottom corners (joystick left, jump/run
+   right), so the hotbar, money and timers stack above that band. */
+.touch-ui .hud {
+  --thumb: clamp(150px, 34vmin, 200px);
 }
-.hud.portrait .hud-timer {
-  --trw: calc(3 * max(var(--tap), calc(56 * var(--u))) + 28 * var(--u));
-  left: calc(20 * var(--u));
-  top: var(--timer-top);
-  width: calc(100% - var(--trw) - 35 * var(--u) - 16px);
-  height: max(30px, calc(65 * var(--u)));
-  margin-left: 0;
+.touch-ui .hud-hotbar {
+  bottom: calc(var(--safe-b) + var(--thumb));
 }
-.hud.portrait {
-  --gap-mid: calc((222 * var(--u) + 100% - 30 * var(--u) - var(--rw)) / 2); /* centre of the gap between the columns */
-  --timer-top: calc(15 * var(--u) + max(var(--tap), calc(55 * var(--u))) + 8px);
-  --podium-top: calc(var(--timer-top) + max(30px, calc(65 * var(--u))) + 6px);
+.touch-ui .hud-ride {
+  bottom: calc(var(--safe-b) + var(--thumb) + max(var(--u) * 112, 56px));
 }
-.hud.portrait .hud-podium {
-  left: var(--gap-mid);
-  top: calc(var(--st) + var(--podium-top));
-  gap: calc(10 * var(--u));
-  --m: calc(66 * var(--u));
-  margin-left: calc(-109 * var(--u)); /* (3 x 66 + 2 x 10) / 2 */
-}
-.hud.portrait .hud-daily {
-  /* centred in the gap between the CLAIM pill and the right column, under the podium */
-  left: var(--gap-mid);
-  top: calc(var(--st) + var(--podium-top) + 66 * var(--u) + 14px);
-  min-width: 64px;
-  min-height: 46px;
-  margin-left: calc(-75 * var(--u));
-}
-.touch-ui .hud.portrait .hud-bottom {
-  --lift: calc(var(--cluster) + 8px - 10 * var(--u));
+@media (orientation: portrait) {
+  .touch-ui .hud-money {
+    bottom: calc(var(--safe-b) + var(--thumb) + var(--u) * 112);
+  }
+  .touch-ui .hud-timers {
+    right: calc(var(--safe-r) + 12px);
+    bottom: calc(var(--safe-b) + var(--thumb) + var(--u) * 250);
+  }
+  .touch-ui .hud-timers .row {
+    font-size: calc(var(--u) * 34);
+  }
+  /* Right side, between x2 Speed and the timers (the money fills the bottom left). */
+  .touch-ui .hud-ride {
+    left: auto;
+    right: calc(var(--safe-r) + 10px);
+    bottom: calc(var(--safe-b) + var(--thumb) + var(--u) * 250 + 85px);
+    transform: none;
+  }
 }
 
-/* A window open on touch (body.uiw-open, uiWindow.js): the HUD and touch buttons only
-   cluttered its edges and ran under its title (the backdrop takes every tap anyway).
-   The trophy / lightning counters stay so prices can be checked against them. */
-.touch-ui.uiw-open .hud > :not(.hud-right),
-.touch-ui.uiw-open .right-b,
-.touch-ui.uiw-open .touch-cluster,
-.touch-ui.uiw-open .joy-base {
-  visibility: hidden;
-}
-.touch-ui.uiw-open .hud-right {
-  top: calc(var(--st) + 8px);
+/* Small phones: tighter columns so nothing overlaps. */
+@media (max-width: 520px) {
+  /* Under the thumb-control buttons and Daily Rewards along the top. */
+  .touch-ui .hud-zonepill {
+    top: calc(var(--safe-t) + 118px);
+    font-size: 13px;
+  }
+  .hud-zonecard .n {
+    font-size: 30px;
+  }
+  .hud-zonecard .k {
+    font-size: 17px;
+  }
+  .hud-zonecard .i {
+    font-size: 13px;
+  }
+  .hud-announce {
+    font-size: 20px;
+    top: 20vh;
+  }
+  .hud-x2 {
+    top: 36vh;
+  }
+  .hud-boost {
+    display: none;
+  }
 }
 
-/* Scene mode (hud.setScene, e.g. the Trails scene): only the round buttons stay. */
-.hud.scene .hud-podium,
-.hud.scene .hud-timer,
-.hud.scene .hud-daily,
-.hud.scene .hud-left,
-.hud.scene .hud-right,
-.hud.scene .hud-bottom {
-  display: none;
+/* Short landscape screens: the left column sits beside Boxity's chat (hud.js),
+   the timers move to the top, the Starter Pack and x2 Speed sit side by side. */
+@media (max-height: 500px) and (orientation: landscape) {
+  .hud-boost {
+    display: none;
+  }
+  .hud-timers {
+    top: calc(var(--safe-t) + 6px);
+    bottom: auto;
+    right: calc(var(--safe-r) + 132px);
+    gap: 2px;
+  }
+  .hud-timers .row {
+    font-size: calc(var(--u) * 30);
+  }
+  .hud-timers svg {
+    width: calc(var(--u) * 40);
+    height: calc(var(--u) * 40);
+  }
+  .hud-starter,
+  .touch-ui .hud-starter {
+    top: calc(var(--safe-t) + 104px);
+    right: calc(var(--safe-r) + 28px);
+    width: calc(var(--u) * 150);
+    height: calc(var(--u) * 140);
+  }
+  .hud-starter svg {
+    width: calc(var(--u) * 120);
+    height: calc(var(--u) * 120);
+  }
+  .hud-x2 {
+    top: calc(var(--safe-t) + 124px);
+    right: calc(var(--safe-r) + var(--u) * 170);
+  }
+  .touch-ui .hud-hotbar {
+    left: 60%;
+  }
+  /* Ride My Bike: bottom right (the timers moved up); on touch the thumb
+     buttons own that corner, so bottom centre under the hotbar instead. */
+  .hud-ride {
+    left: auto;
+    right: calc(var(--safe-r) + 12px);
+    bottom: calc(var(--safe-b) + 12px);
+    transform: none;
+  }
+  .touch-ui .hud-ride {
+    left: 50%;
+    right: auto;
+    bottom: calc(var(--safe-b) + 8px);
+    transform: translateX(-50%);
+  }
+  .hud-announce {
+    font-size: 18px;
+    top: 16vh;
+  }
 }
