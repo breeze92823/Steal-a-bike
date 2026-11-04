@@ -115,8 +115,16 @@ export function createHud() {
   // Above the slots while an item is picked in a chase: "CLICK TO USE" (a tap button on touch).
   const use = btn('hud-use ot', '', () => useFn())
   // The stolen bike you are walking home (base.js), always in hand, after the items.
-  const heldSlot = btn('hud-slot sel hud-held', '<span class="n ot"></span><span class="art"></span><span class="nm ot"></span>', () => {})
+  // Tap it (or press its number) to put the bike away: then it is not in hand and Ride My Bike
+  // rides the default bike. Select it again to hold / ride it.
+  const toggleHeld = () => {
+    if (!player.holding) return
+    player.bikeSelected = !player.bikeSelected
+    heldSlot.classList.toggle('sel', player.bikeSelected)
+  }
+  const heldSlot = btn('hud-slot sel hud-held', '<span class="n ot"></span><span class="art"></span><span class="nm ot"></span>', toggleHeld)
   heldSlot.style.display = 'none'
+  for (let i = 1; i <= 9; i++) onKey(`Digit${i}`, () => i === itemCount + 1 && toggleHeld())
   hotbar.append(heldSlot, use)
   let itemCount = 0
 
@@ -302,6 +310,8 @@ export function createHud() {
     setHeld(name, art = '') {
       heldSlot.style.display = name ? '' : 'none'
       if (!name) return
+      player.bikeSelected = true // a bike you pick up or buy is in hand
+      heldSlot.classList.add('sel')
       heldSlot.querySelector('.art').innerHTML = art
       heldSlot.querySelector('.nm').textContent = name
     },

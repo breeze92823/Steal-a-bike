@@ -106,7 +106,7 @@ function guardTop(tier) {
 // it about the back axle with `pitch` for wheelies, and rolls the body over
 // with `roll` / `lift` when you are knocked down). onEscape(bike, model) gets
 // the bike you got away with and the model you rode it on.
-export function createHeist({ scene, camera, hud, lane, rig, onEscape }) {
+export function createHeist({ scene, camera, hud, lane, rig, onEscape, onStash }) {
   const RED = new Color('#ff1a2a')
   const BLUE = new Color('#2a6dff')
   // Two coloured lights that ride on the chasing vehicle (always in the scene,
@@ -180,6 +180,7 @@ export function createHeist({ scene, camera, hud, lane, rig, onEscape }) {
   hud.onSteal(trySteal)
 
   function steal(b) {
+    if (player.holding) onStash?.() // the bike in your hands goes to your bikes (Sell window)
     b.taken = true
     b.mesh.visible = false
     for (const e of b.extras) e.visible = false
@@ -523,7 +524,7 @@ export function createHeist({ scene, camera, hud, lane, rig, onEscape }) {
 
     // The STEAL prompt over the nearest bay bike in reach.
     let best = null
-    if (!carried && !knock && !player.training && !player.holding) {
+    if (!carried && !knock && !player.training) {
       let bd = HEIST.reach
       for (const b of bikes) {
         if (b.taken || !b.root.visible) continue

@@ -28,6 +28,7 @@ export const player = {
   training: null, // { x, y, z, facing } while pedalling on your treadmill (training.js): the body is held there
   wantsOff: false, // set when Jump is pressed while training; training.js gets you off
   frozen: false, // knocked off a stolen bike (heist.js): no control until you are back up
+  bikeSelected: true, // the held bike is selected on the hotbar (in hand, and what Ride My Bike rides)
   holding: null, // the name of the stolen bike you are walking home (base.js)
 }
 

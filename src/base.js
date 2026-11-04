@@ -7,7 +7,7 @@ import { bikeTag } from './kit.js'
 import { heistSfx as sfx, sfx as uiSfx } from './audio.js'
 import { bikeArt, bikeValue, CATALOG } from './bikeart.js'
 import { discover } from './bikeindex.js'
-import { onHandSale } from './sellshop.js'
+import { addBike, onHandSale } from './sellshop.js'
 import { ICON } from './shopwin.js'
 import { shortNumber } from './hud.js'
 import { plotWidth } from './lobby.js'
@@ -196,6 +196,14 @@ export function createBase({ hud, camera, holder }) {
   return {
     hold,
     setRiding,
+    // Stealing another bike: the one in your hands moves to your bikes (Sell window).
+    stash() {
+      if (!held) return
+      const { name } = held
+      letGo()
+      addBike(name)
+      hud.say(`${name} stored in your bikes`)
+    },
     get heldModel() {
       return held?.model ?? null
     },

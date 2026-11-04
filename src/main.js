@@ -192,7 +192,7 @@ let sentLevel = -1
 
 // Stealing bikes from the guard posts and the chase home (the guards and bikes
 // registered themselves as their zones were built).
-const heist = createHeist({ scene, camera, hud: createChaseHud(hud), lane, rig: ride, onEscape: (b, model) => base.hold(b.name, model, b.value) })
+const heist = createHeist({ scene, camera, hud: createChaseHud(hud), lane, rig: ride, onEscape: (b, model) => base.hold(b.name, model, b.value), onStash: () => base.stash() })
 // The chase items on the hotbar (bat, barbed wire, oil, smoke, nitro) and the crates that drop during a chase.
 const items = createItems({ scene, hud, heist, lane, rig: ride, canvas: renderer.domElement })
 
@@ -279,12 +279,13 @@ function frame() {
   items.update(dt, elapsed)
   base.update(dt)
   const train = training.state
-  holder.visible = !player.riding // the held bike's tag hides while you ride it
+  const inHand = !!player.holding && player.bikeSelected // deselected on the hotbar: put away
+  holder.visible = !player.riding && inHand // the held bike's tag hides while you ride it
   const onBike = player.riding || train.active
   const speed = train.active ? train.pedal : Math.hypot(player.velocity.x, player.velocity.z)
-  // Riding while holding a bike (e.g. a bought Abyss): that very bike is under you.
-  base.setRiding(player.riding && !heist.carrying && !train.active, ride, RIDE.bikeScale)
-  const ridingHeld = player.riding && !!player.holding && !heist.carrying && !train.active
+  // Riding with the held bike selected (e.g. a bought Abyss): that very bike is under you.
+  const ridingHeld = player.riding && inHand && !heist.carrying && !train.active
+  base.setRiding(ridingHeld, ride, RIDE.bikeScale)
   myBike.visible = onBike && !heist.carrying && !ridingHeld // a stolen bike shows its own model
   const wheels = heist.carrying ? heist.rideModel?.userData.wheels : ridingHeld ? base.heldModel?.userData.wheels : myBike.userData.wheels
   if (onBike && wheels) for (const w of wheels) w.rotation.z -= (speed * dt) / (0.42 * RIDE.bikeScale)
@@ -298,12 +299,12 @@ function frame() {
     turn: 0,
     riding: onBike,
     seatLift: RIDE.seatLift,
-    holding: !!player.holding,
+    holding: inHand,
   })
 
   // Others see where you are, what you ride and your trail (net.js throttles and skips duplicates).
-  sendPose({ x: round2(p.x), y: round2(p.y), z: round2(p.z), yaw: round2(player.facing), speed: round2(speed), state: onBike ? 1 : player.holding ? 2 : 0 })
-  sendLoadout({ trail: equippedTrail()?.id ?? '', bike: player.holding ?? '' })
+  sendPose({ x: round2(p.x), y: round2(p.y), z: round2(p.z), yaw: round2(player.facing), speed: round2(speed), state: onBike ? 1 : inHand ? 2 : 0 })
+  sendLoadout({ trail: equippedTrail()?.id ?? '', bike: inHand ? player.holding : '' })
   myTrail.update(dt, equippedTrail()?.id ?? '', p.x, p.y, p.z) // your own, so you see what they see
   remotes.update(dt, p)
   if (base.version !== sentBase || training.level !== sentLevel) {
