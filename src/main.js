@@ -279,10 +279,14 @@ function frame() {
   items.update(dt, elapsed)
   base.update(dt)
   const train = training.state
+  holder.visible = !player.riding // the held bike's tag hides while you ride it
   const onBike = player.riding || train.active
   const speed = train.active ? train.pedal : Math.hypot(player.velocity.x, player.velocity.z)
-  myBike.visible = onBike && !heist.carrying // a stolen bike shows its own model
-  const wheels = heist.carrying ? heist.rideModel?.userData.wheels : myBike.userData.wheels
+  // Riding while holding a bike (e.g. a bought Abyss): that very bike is under you.
+  base.setRiding(player.riding && !heist.carrying && !train.active, ride, RIDE.bikeScale)
+  const ridingHeld = player.riding && !!player.holding && !heist.carrying && !train.active
+  myBike.visible = onBike && !heist.carrying && !ridingHeld // a stolen bike shows its own model
+  const wheels = heist.carrying ? heist.rideModel?.userData.wheels : ridingHeld ? base.heldModel?.userData.wheels : myBike.userData.wheels
   if (onBike && wheels) for (const w of wheels) w.rotation.z -= (speed * dt) / (0.42 * RIDE.bikeScale)
   axle.rotation.x = -(train.wheelie + heist.pitch) // front wheel up
   fall.rotation.z = heist.roll - player.bike.lean // knocked over, or leaning into a turn

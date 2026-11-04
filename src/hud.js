@@ -137,7 +137,6 @@ export function createHud() {
   // Ride My Bike: only out in the lane, past the SAFE ZONE line.
   const ride = el('div', 'hud-ride')
   const rideBtn = btn('hud-ride-go', '<span class="ot">Ride My Bike</span>', () => {
-    if (player.holding) return say('Place or sell your bike first')
     player.riding = !player.riding
     rideLabel.textContent = player.riding ? 'Get Off Bike' : 'Ride My Bike'
   })
@@ -350,11 +349,11 @@ export function createHud() {
         if (announceLeft <= 0) banner.classList.remove('show')
       }
       // Every frame: the safe zone (up to the far edge of the red line) takes you off your bike.
-      const outside = player.position.z < LAYOUT.safeZoneZ - 0.6
-      if (!outside && player.riding) {
-        player.riding = false
-        rideLabel.textContent = 'Ride My Bike'
-      }
+      // Holding a bike (bought at the hub or stolen) lets you ride it anywhere, without selling it.
+      const outside = player.position.z < LAYOUT.safeZoneZ - 0.6 || !!player.holding
+      if (!outside && player.riding) player.riding = false
+      const label = player.riding ? 'Get Off Bike' : 'Ride My Bike'
+      if (rideLabel.textContent !== label) rideLabel.textContent = label
       if (outside !== rideShown) {
         rideShown = outside
         ride.classList.toggle('show', outside)

@@ -111,7 +111,33 @@ export function createBase({ hud, camera, holder }) {
     discover(name) // it counts as found in the Bike Index
   }
 
+  // Ride the held bike itself: its model moves under the avatar (rig), and back beside you on foot.
+  let mountedRig = null
+  function setRiding(on, rig, scale) {
+    if (!held) return
+    if (on && !mountedRig) {
+      mountedRig = rig
+      held.model.removeFromParent()
+      held.model.position.set(0, 0, 0)
+      held.model.rotation.set(0, -Math.PI / 2, 0)
+      held.model.scale.setScalar(scale)
+      rig.add(held.model)
+      player.rideKind = held.model.userData.wheels ? 'pedal' : 'motor'
+    } else if (!on && mountedRig) unmount()
+  }
+  function unmount() {
+    mountedRig = null
+    if (!held) return
+    held.model.removeFromParent()
+    held.model.position.set(BASE.hold.x, 0, BASE.hold.z)
+    held.model.rotation.set(0, -Math.PI / 2, 0)
+    held.model.scale.setScalar(BASE.hold.scale)
+    holder.add(held.model)
+    player.rideKind = 'pedal'
+  }
+
   function letGo() {
+    mountedRig = null
     held.model.removeFromParent()
     held.tag.removeFromParent()
     held.tag.material.map.dispose()
@@ -169,6 +195,10 @@ export function createBase({ hud, camera, holder }) {
   // --- Per frame -----------------------------------------------------------------------------
   return {
     hold,
+    setRiding,
+    get heldModel() {
+      return held?.model ?? null
+    },
     get version() {
       return version
     },
@@ -188,7 +218,7 @@ export function createBase({ hud, camera, holder }) {
       const home = onPlot(p)
       hud.offline(home ? money(hud.income * BASE.offlineHours * 3600 * BASE.offlineShare) : null)
 
-      if (held) {
+      if (held && !mountedRig) {
         // The wheels roll as you walk.
         const speed = Math.hypot(player.velocity.x, player.velocity.z)
         for (const w of held.model.userData.wheels ?? []) w.rotation.z -= (speed * dt) / (0.42 * BASE.hold.scale)
